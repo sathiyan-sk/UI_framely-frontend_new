@@ -1,12 +1,12 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { login } from '../../lib/api'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-export default function Login() {
+function LoginInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
@@ -48,13 +48,11 @@ export default function Login() {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '20px', position: 'relative', overflow: 'hidden',
     }}>
-
       <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse 80% 60% at 50% 30%, rgba(255,220,200,0.45) 0%, transparent 70%)', pointerEvents: 'none' }} />
       <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse 60% 50% at 20% 70%, rgba(200,190,255,0.3) 0%, transparent 60%)', pointerEvents: 'none' }} />
       <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse 50% 40% at 80% 20%, rgba(251,207,232,0.3) 0%, transparent 60%)', pointerEvents: 'none' }} />
 
       <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 440 }}>
-
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
             <div style={{ width: 42, height: 42, borderRadius: 14, background: 'linear-gradient(135deg,#9b7fe8,#c084fc)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 18, boxShadow: '0 4px 16px rgba(155,127,232,0.4)' }}>P</div>
@@ -67,25 +65,15 @@ export default function Login() {
           border: '1px solid rgba(255,255,255,0.8)', borderRadius: 28, padding: '36px 36px 32px',
           boxShadow: '0 8px 48px rgba(155,127,232,0.15), inset 0 1px 0 rgba(255,255,255,0.9)',
         }}>
-
           <div style={{ textAlign: 'center', marginBottom: 28 }}>
             <h1 style={{ fontSize: 26, fontWeight: 800, color: '#2d1b69', letterSpacing: '-.03em', marginBottom: 6 }}>Welcome back</h1>
             <p style={{ fontSize: 14, color: '#9b89c4' }}>Sign in to your Framely account</p>
           </div>
 
-          {/* ── Google button WIRED UP ── */}
-          <button
-            onClick={handleGoogleLogin}
-            style={{
-              width: '100%', padding: '12px 16px', borderRadius: 14,
-              background: 'rgba(255,255,255,0.9)', border: '1.5px solid rgba(155,127,232,0.2)',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 10, fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 16,
-              transition: 'all .15s', boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-            }}
+          <button onClick={handleGoogleLogin}
+            style={{ width: '100%', padding: '12px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.9)', border: '1.5px solid rgba(155,127,232,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 16, transition: 'all .15s', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
             onMouseEnter={e => { e.currentTarget.style.background='#fff'; e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.1)'; e.currentTarget.style.border='1.5px solid rgba(155,127,232,0.4)' }}
-            onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.9)'; e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'; e.currentTarget.style.border='1.5px solid rgba(155,127,232,0.2)' }}
-          >
+            onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.9)'; e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'; e.currentTarget.style.border='1.5px solid rgba(155,127,232,0.2)' }}>
             <svg width="18" height="18" viewBox="0 0 48 48">
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
               <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -167,8 +155,20 @@ export default function Login() {
           ))}
         </div>
       </div>
-
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
+  )
+}
+
+export default function Login() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#ddd6fe 0%,#e9d5ff 20%,#fbcfe8 50%,#fde68a 80%,#ddd6fe 100%)' }}>
+        <div style={{ width: 48, height: 48, border: '3px solid rgba(155,127,232,0.3)', borderTop: '3px solid #9b7fe8', borderRadius: '50%', animation: 'spin .8s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    }>
+      <LoginInner />
+    </Suspense>
   )
 }

@@ -12,17 +12,17 @@ export default function LandingPage() {
   const navLinks = ['Features','How It Works','Use Cases','Pricing','Testimonials','FAQ']
 
   const features = [
-    { icon:'👥', title:'AI Face Recognition', desc:'Guests take a selfie and instantly find all their photos. 98.5% accuracy powered by ArcFace ResNet-50.', grad:'135deg,#9b7fe8,#c084fc' },
+    { icon:'👥', title:'AI Face Recognition', desc:'Guests take a selfie and instantly find all their photos. 99.5% accuracy powered by Artificial Intelligence.', grad:'135deg,#9b7fe8,#c084fc' },
     { icon:'⚡', title:'Instant Photo Delivery', desc:'Photos processed and delivered in real-time. No waiting, no app downloads required.', grad:'135deg,#f472b6,#fb7185' },
     { icon:'🎨', title:'Custom Branding', desc:'White-label galleries with your logo, colors, and domain. Professional for every client.', grad:'135deg,#60a5fa,#818cf8' },
     { icon:'🛒', title:'Built-in Photo Sales', desc:'Sell prints and downloads directly from your gallery. Integrated payments, zero commission.', grad:'135deg,#34d399,#2dd4bf' },
-    { icon:'📸', title:'Batch Upload', desc:'Upload 500+ photos at once with live progress tracking. Celery workers process in background.', grad:'135deg,#fbbf24,#f97316' },
+    { icon:'📸', title:'Batch Upload', desc:'Upload 500+ photos at once with live progress tracking. Artificial Intelligence  process in background.', grad:'135deg,#fbbf24,#f97316' },
     { icon:'🎬', title:'AI-Generated Reels', desc:'Auto-create highlight reels from your best shots. Perfect for social sharing after events.', grad:'135deg,#c084fc,#f472b6' },
   ]
 
   const steps = [
     { n:'01', title:'Create Event', desc:'Set up your event in minutes. Add name, date, location, event type and custom branding.' },
-    { n:'02', title:'Upload Photos', desc:'Batch upload from your computer. ArcFace AI runs on every photo automatically via Celery.' },
+    { n:'02', title:'Upload Photos', desc:'Batch upload from your computer.  Artificial Intelligence runs on every photo automatically.' },
     { n:'03', title:'Share Guest Link', desc:'Copy the QR link and share with guests. They take a selfie to find all their photos instantly.' },
     { n:'04', title:'Deliver & Sell', desc:'Guests download, share, and purchase. You get paid directly with Razorpay integration.' },
   ]
@@ -36,9 +36,9 @@ export default function LandingPage() {
   }
 
   const plans = [
-    { name:'Rider', desc:'Perfect for trying out', price:{ m:499, y:399 }, features:['1 event per month','1,000 photos per event','Basic face recognition','Standard galleries','Email support'], popular:false },
-    { name:'Pro', desc:'For professional photographers', price:{ m:999, y:799 }, features:['Unlimited events','10,000 photos/event','ArcFace AI recognition','Full white-label','Zero commission sales','API access','Priority support'], popular:true },
-    { name:'Enterprise', desc:'For agencies and studios', price:{ m:1999, y:1599 }, features:['Everything in Pro','Unlimited photos','Multi-user teams','Custom integrations','SLA guarantee','Account manager'], popular:false },
+    { name:'Rider', desc:'Perfect for trying out', price:{ m:450, y:399 }, features:['1 event per month','1,000 photos per event','AI face recognition','Standard galleries','Email support'], popular:false },
+    { name:'Pro', desc:'For professional photographers', price:{ m:999, y:799 }, features:['Unlimited events','10,000 photos/event',' AI Face recognition','Full white-label','Zero commission sales','API access','Priority support'], popular:true },
+    { name:'Enterprise', desc:'For agencies and studios', price:{ m:1999, y:1599 }, features:['Everything in Pro','Unlimited photos','Multi-user teams','Custom integrations','SLA guarantee'], popular:false },
   ]
 
   const testimonials = [
@@ -48,10 +48,10 @@ export default function LandingPage() {
   ]
 
   const faqs = [
-    { q:'How accurate is the face recognition?', a:'98.5% accuracy using ArcFace ResNet-50 with 512-dimensional embeddings stored in pgvector. Works reliably with Indian faces, different lighting, angles, and accessories.' },
+    { q:'How accurate is the face recognition?', a:'99.5% accuracy using Artificial Intelligence Face Recognition System. Works reliably with Indian faces, different lighting, angles, and accessories.' },
     { q:'How do guests access their photos?', a:'Guests open the event link, take a quick selfie, and our AI instantly finds all photos they appear in. No app download required — works on any mobile browser.' },
-    { q:'How many photos can I upload?', a:'Our batch uploader handles 500+ photos at once with live progress. Celery workers process them in parallel — typically 3-5 seconds per photo on CPU.' },
-    { q:'Is there a limit on storage?', a:'Rider plan has per-event limits. Pro includes 500GB Cloudflare R2 storage. Enterprise offers unlimited storage served via CDN for fast global delivery.' },
+    { q:'How many photos can I upload?', a:'Our batch uploader handles 500+ photos at once with live progress. AI  process them in parallel — typically 3-5 seconds per photo on CPU.' },
+    { q:'Is there a limit on storage?', a:'Rider plan has per-event limits. Pro includes 500GB storage. Enterprise offers unlimited storage served via CDN for fast global delivery.' },
     { q:'Can I white-label the platform?', a:'Yes! Pro and Enterprise plans include full white-labeling — your logo, colors, custom domain, and branded emails. Your clients never see the Framely name.' },
   ]
 
@@ -143,7 +143,7 @@ export default function LandingPage() {
 
             {/* Stats — clean cards like page 1 */}
             <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, maxWidth:900, margin:'0 auto' }}>
-              {[{v:'10M+',l:'Photos Processed'},{v:'98.5%',l:'Face Recognition Accuracy'},{v:'50K+',l:'Events Hosted'},{v:'4.9/5',l:'Customer Rating'}].map((s,i)=>(
+              {[{v:'10M+',l:'Photos Processed'},{v:'99.5%',l:'Face Recognition Accuracy'},{v:'50K+',l:'Events Hosted'},{v:'4.9/5',l:'Customer Rating'}].map((s,i)=>(
                 <div key={i} style={{ background:'rgba(255,255,255,0.55)', backdropFilter:'blur(12px)', border:'1px solid rgba(255,255,255,0.8)', borderRadius:20, padding:'22px 16px', textAlign:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.05)' }}>
                   <div style={{ fontSize:'clamp(28px,3vw,36px)', fontWeight:800, color:'#2d1b69', letterSpacing:'-.03em', marginBottom:5 }}>{s.v}</div>
                   <div style={{ fontSize:12, color:'#9b89c4', fontWeight:500 }}>{s.l}</div>

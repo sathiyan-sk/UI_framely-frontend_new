@@ -94,19 +94,21 @@ const css = `
   .ev-meta { font-size:12.5px;color:var(--ink-mute);margin-bottom:5px; }
   .ev-dates { font-size:11.5px;color:var(--ink-mute);font-family:var(--mono);letter-spacing:0.02em;margin-bottom:14px; }
 
-  .ev-stat-chip {
-    display: inline-flex; flex-direction: column; align-items: center;
-    padding: 4px 10px; border-radius: 6px;
+  .ev-stats {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px; margin-bottom: 14px;
+  }
+  .ev-stat {
     background: var(--bg-soft); border: 1px solid var(--line-soft);
-    min-width: 52px;
+    border-radius: 8px; padding: 9px 11px;
   }
-  .ev-stat-chip-val {
-    font-family: var(--mono); font-size: 14px; font-weight: 600;
-    color: var(--ink); line-height: 1.2;
+  .ev-stat-val {
+    font-family: var(--mono); font-size: 18px; font-weight: 600;
+    color: var(--ink); line-height: 1; margin-bottom: 3px;
   }
-  .ev-stat-chip-lbl {
-    font-size: 9px; color: var(--ink-mute); text-transform: uppercase;
-    letter-spacing: 0.06em; font-family: var(--mono); white-space: nowrap;
+  .ev-stat-lbl {
+    font-size: 10px; color: var(--ink-mute); text-transform: uppercase;
+    letter-spacing: 0.07em; font-family: var(--mono);
   }
 
   .ev-toggle {
@@ -191,9 +193,8 @@ function templateLabel(id) {
 }
 
 // ── Status: only published / unpublished / expired ───────────────────────────
-// expired = data expiry date (expires_at) has passed — NOT the event end date
 function getStatus(ev) {
-  if (ev.expires_at && new Date(ev.expires_at) < new Date()) return 'expired'
+  if (ev.end_date && new Date(ev.end_date) < new Date()) return 'expired'
   if (ev.is_published) return 'published'
   return 'unpublished'
 }
@@ -238,37 +239,41 @@ function EventCard({ ev, index, photoCount, guestCount, coverUrl, onDelete, onTo
 
         {/* Body */}
         <div className="ev-body">
-          {/* Name row — name/meta left, stat chips right */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
-            <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
+            <div style={{ minWidth: 0 }}>
               <h3 className="ev-name">{ev.name}</h3>
               {meta      && <div className="ev-meta">{meta}</div>}
               {dateRange && <div className="ev-dates">{dateRange}</div>}
-              {/* Feature badges */}
-              <div style={{ display: 'flex', gap: 5, marginTop: meta || dateRange ? 6 : 4, flexWrap: 'wrap' }}>
-                {ev.guest_upload_enabled && (
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid rgba(22,163,74,0.2)', fontFamily: 'var(--mono)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Guest Upload</span>
-                )}
-                {ev.public_gallery && (
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid rgba(37,99,235,0.2)', fontFamily: 'var(--mono)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Public</span>
-                )}
-              </div>
             </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+              {ev.guest_upload_enabled && (
+                <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid rgba(22,163,74,0.2)', fontFamily: 'var(--mono)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Guest Upload</span>
+              )}
+              {ev.public_gallery && (
+                <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid rgba(37,99,235,0.2)', fontFamily: 'var(--mono)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Public</span>
+              )}
+            </div>
+          </div>
 
-            {/* Stat chips — right aligned */}
-            <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'flex-start', paddingTop: 2 }}>
-              <div className="ev-stat-chip">
-                <div className="ev-stat-chip-val">
-                  {photoCount === null ? '—' : photoCount.toLocaleString()}
-                </div>
-                <div className="ev-stat-chip-lbl">Photos</div>
+          {/* Stats: Photos + Guests */}
+          <div className="ev-stats">
+            <div className="ev-stat">
+              <div className="ev-stat-val">
+                {photoCount === null
+                  ? <span style={{ fontSize: 13, color: 'var(--ink-mute)' }}>—</span>
+                  : photoCount.toLocaleString()
+                }
               </div>
-              <div className="ev-stat-chip">
-                <div className="ev-stat-chip-val">
-                  {guestCount === null ? '—' : guestCount.toLocaleString()}
-                </div>
-                <div className="ev-stat-chip-lbl">Guests</div>
+              <div className="ev-stat-lbl">Total Photos</div>
+            </div>
+            <div className="ev-stat">
+              <div className="ev-stat-val">
+                {guestCount === null
+                  ? <span style={{ fontSize: 13, color: 'var(--ink-mute)' }}>—</span>
+                  : guestCount.toLocaleString()
+                }
               </div>
+              <div className="ev-stat-lbl">Guest Visits</div>
             </div>
           </div>
 
@@ -311,16 +316,12 @@ function SkeletonCard() {
     <div style={{ border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden', background: 'var(--bg)' }}>
       <div style={{ height: 240, background: 'var(--bg-soft)' }} className="ev-skeleton" />
       <div style={{ padding: '18px 20px 20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
-          <div style={{ flex: 1 }}>
-            <div className="ev-skeleton" style={{ height: 22, width: '55%', marginBottom: 8 }} />
-            <div className="ev-skeleton" style={{ height: 12, width: '38%', marginBottom: 6 }} />
-            <div className="ev-skeleton" style={{ height: 12, width: '28%' }} />
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <div className="ev-skeleton" style={{ width: 52, height: 44, borderRadius: 6 }} />
-            <div className="ev-skeleton" style={{ width: 52, height: 44, borderRadius: 6 }} />
-          </div>
+        <div className="ev-skeleton" style={{ height: 22, width: '60%', marginBottom: 10 }} />
+        <div className="ev-skeleton" style={{ height: 13, width: '40%', marginBottom: 8 }} />
+        <div className="ev-skeleton" style={{ height: 13, width: '30%', marginBottom: 14 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+          <div className="ev-skeleton" style={{ height: 56, borderRadius: 8 }} />
+          <div className="ev-skeleton" style={{ height: 56, borderRadius: 8 }} />
         </div>
         <div className="ev-skeleton" style={{ height: 34, borderRadius: 7 }} />
       </div>

@@ -1,0 +1,635 @@
+'use client'
+import { useState, useEffect, useRef } from 'react'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const RAZORPAY_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || ''
+
+const PLANS = [
+  { key: 'starter', name: 'Starter', price: 0, priceLabel: 'Free', storageNum: 10, storage: '10 GB', color: '#6b7280', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.2)', features: ['10,000 photos', '10 GB storage', 'AI face recognition', 'Guest QR code', 'Unlimited events'] },
+  { key: 'pro',     name: 'Pro',     price: 450, priceLabel: '450', badge: 'Most Popular', storageNum: 50,  storage: '50 GB',  color: '#7c3aed', bg: 'rgba(124,58,237,0.08)', border: 'rgba(124,58,237,0.3)',  features: ['50,000 photos', '50 GB storage', 'AI face recognition', 'Guest QR code', 'WhatsApp sharing', 'Priority processing'] },
+  { key: 'elite',   name: 'Elite',   price: 900, priceLabel: '900', badge: 'Best Value',  storageNum: 100, storage: '100 GB', color: '#d97706', bg: 'rgba(217,119,6,0.08)',  border: 'rgba(217,119,6,0.3)',   features: ['1,00,000 photos', '100 GB storage', 'AI face recognition', 'Guest QR code', 'WhatsApp sharing', 'Priority processing', 'Dedicated support'] },
+]
+
+const INDUSTRIES     = ['Photographer','Videographer','Event Management','Wedding Planner','Corporate Events','Sports Photography','Other']
+const EVENTS_PER_YEAR = ['1-5','5-10','10-25','25-50','50+']
+const INDIAN_STATES  = ['Andhra Pradesh','Assam','Bihar','Chhattisgarh','Delhi','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Odisha','Punjab','Rajasthan','Tamil Nadu','Telangana','Uttar Pradesh','Uttarakhand','West Bengal']
+// 9-position grid: row x col
+const WM_POSITIONS = [
+  { id: 'top-left',      label: 'Top Left',      row: 0, col: 0 },
+  { id: 'top-center',    label: 'Top Center',    row: 0, col: 1 },
+  { id: 'top-right',     label: 'Top Right',     row: 0, col: 2 },
+  { id: 'mid-left',      label: 'Mid Left',      row: 1, col: 0 },
+  { id: 'mid-center',    label: 'Center',        row: 1, col: 1 },
+  { id: 'mid-right',     label: 'Mid Right',     row: 1, col: 2 },
+  { id: 'bottom-left',   label: 'Bottom Left',   row: 2, col: 0 },
+  { id: 'bottom-center', label: 'Bottom Center', row: 2, col: 1 },
+  { id: 'bottom-right',  label: 'Bottom Right',  row: 2, col: 2 },
+]
+
+const glass = (extra) => Object.assign({ background: 'rgba(255,255,255,0.5)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)', borderRadius: 20, boxShadow: '0 4px 24px rgba(100,80,180,0.07)' }, extra || {})
+const inp   = { width: '100%', padding: '11px 14px', borderRadius: 12, fontSize: 13, color: '#2d1b69', background: 'rgba(255,255,255,0.7)', border: '1.5px solid rgba(155,127,232,0.2)', outline: 'none', fontFamily: 'inherit', transition: 'border .15s', boxSizing: 'border-box' }
+const lbl   = { fontSize: 12, fontWeight: 600, color: '#7c6aaa', marginBottom: 6, display: 'block' }
+
+// ── WatermarkPreview component ───────────────────────────────────────────────
+// Separate component so React properly re-renders on every branding state change
+function WatermarkPreview({ branding, logoPreview }) {
+  const pos    = branding.watermark_position || 'bottom-right'
+  const mxNum  = branding.watermark_margin_x ?? 3
+  const myNum  = branding.watermark_margin_y ?? 3
+  const opacity = (branding.watermark_opacity ?? 80) / 100
+
+  const sizeMap = { small: 80, medium: 130, large: 190 }  // px width
+  const logoW   = sizeMap[branding.watermark_size] || 130
+
+  // Preview box is fixed 560x315 (16:9)
+  const BOX_W = 560
+  const BOX_H = 315
+  const padX  = Math.round(BOX_W * mxNum / 100)
+  const padY  = Math.round(BOX_H * myNum / 100)
+
+  // Compute exact pixel position inside the preview box
+  const style = {
+    position:  'absolute',
+    width:     logoW,
+    opacity:   opacity,
+    transition: 'all .2s ease',
+    maxHeight:  BOX_H * 0.35,
+    objectFit: 'contain',
+  }
+
+  if (pos === 'top-left')      { style.top = padY;              style.left  = padX }
+  if (pos === 'top-center')    { style.top = padY;              style.left  = '50%'; style.transform = 'translateX(-50%)' }
+  if (pos === 'top-right')     { style.top = padY;              style.right = padX }
+  if (pos === 'mid-left')      { style.top = '50%';             style.left  = padX;  style.transform = 'translateY(-50%)' }
+  if (pos === 'mid-center')    { style.top = '50%';             style.left  = '50%'; style.transform = 'translate(-50%,-50%)' }
+  if (pos === 'mid-right')     { style.top = '50%';             style.right = padX;  style.transform = 'translateY(-50%)' }
+  if (pos === 'bottom-left')   { style.bottom = padY;           style.left  = padX }
+  if (pos === 'bottom-center') { style.bottom = padY;           style.left  = '50%'; style.transform = 'translateX(-50%)' }
+  if (pos === 'bottom-right')  { style.bottom = padY;           style.right = padX }
+
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.5)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)', borderRadius: 18, padding: '18px 20px', boxShadow: '0 4px 24px rgba(100,80,180,0.07)' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#2d1b69', marginBottom: 12 }}>
+        Live Preview <span style={{ fontSize: 10, color: '#9b89c4', fontWeight: 400 }}>— updates instantly</span>
+      </div>
+
+      {/* Fixed-size preview box so pixel positions are accurate */}
+      <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%', borderRadius: 12, overflow: 'hidden', background: 'linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)' }}>
+        <div style={{ position: 'absolute', inset: 0 }}>
+          {/* Background scene SVG */}
+          <svg width="100%" height="100%" viewBox="0 0 560 315" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="previewSky" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#1a1a2e"/>
+                <stop offset="60%" stopColor="#16213e"/>
+                <stop offset="100%" stopColor="#0f3460"/>
+              </linearGradient>
+            </defs>
+            <rect width="560" height="315" fill="url(#previewSky)"/>
+            <polygon points="0,315 100,155 200,315"  fill="rgba(255,255,255,0.06)"/>
+            <polygon points="80,315 200,110 320,315"  fill="rgba(255,255,255,0.09)"/>
+            <polygon points="200,315 320,130 440,315" fill="rgba(255,255,255,0.07)"/>
+            <polygon points="320,315 440,160 560,315" fill="rgba(255,255,255,0.05)"/>
+            <circle cx="420" cy="80" r="35" fill="rgba(255,200,50,0.12)"/>
+            <circle cx="420" cy="80" r="22" fill="rgba(255,200,50,0.2)"/>
+            <circle cx="420" cy="80" r="12" fill="rgba(255,220,80,0.35)"/>
+            <rect x="0" y="268" width="560" height="47" fill="rgba(0,0,0,0.25)"/>
+          </svg>
+
+          {/* Watermark overlay */}
+          {branding.watermark_enabled ? (
+            logoPreview
+              ? <img src={logoPreview} alt="watermark preview" style={style} />
+              : <div style={{ ...style, width: undefined, fontSize: 12, fontWeight: 700,
+                  color: `rgba(255,255,255,${opacity})`,
+                  background: 'rgba(0,0,0,0.35)', padding: '5px 12px',
+                  borderRadius: 6, whiteSpace: 'nowrap', backdropFilter: 'blur(4px)' }}>
+                  Your Studio Name
+                </div>
+          ) : (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600, background: 'rgba(0,0,0,0.3)', padding: '6px 14px', borderRadius: 20 }}>
+                Watermark disabled
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 8, fontSize: 10, color: '#9b89c4', textAlign: 'center' }}>
+        Position: <strong style={{ color: '#7c3aed' }}>{pos.replace('-', ' ').replace(/\w/g, c => c.toUpperCase())}</strong>
+        &nbsp;·&nbsp; Size: <strong style={{ color: '#7c3aed' }}>{branding.watermark_size}</strong>
+        &nbsp;·&nbsp; Opacity: <strong style={{ color: '#7c3aed' }}>{branding.watermark_opacity}%</strong>
+      </div>
+    </div>
+  )
+}
+
+export default function SettingsPage() {
+  const [tab,        setTab]        = useState('profile')
+  const [planData,   setPlanData]   = useState(null)
+  const [saving,     setSaving]     = useState(false)
+  const [saved,      setSaved]      = useState(false)
+  const [payLoading, setPayLoading] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
+  const [errorMsg,   setErrorMsg]   = useState('')
+  const [profile,    setProfile]    = useState({
+    full_name: '', email: '', phone: '', state: '', city: '',
+    company_name: '', industry: '', events_per_year: '',
+    billing_company: '', gstin: '', avatar_url: '',
+  })
+
+  // Branding state
+  const [branding, setBranding] = useState({
+    logo_url:           null,
+    watermark_position: 'bottom-right',
+    watermark_enabled:  false,
+    watermark_opacity:  80,    // 0-100
+    watermark_size:     'medium', // small|medium|large
+    watermark_margin_x: 3,    // % from edge
+    watermark_margin_y: 3,    // % from edge
+  })
+  const [logoPreview,    setLogoPreview]    = useState(null)
+  const [logoFile,       setLogoFile]       = useState(null)
+  const [brandingSaving, setBrandingSaving] = useState(false)
+  const [brandingSaved,  setBrandingSaved]  = useState(false)
+  const logoInputRef = useRef(null)
+
+  useEffect(() => { fetchProfile(); fetchPlan() }, [])
+
+  useEffect(() => {
+    if (tab === 'plan' && !window.Razorpay) {
+      const s = document.createElement('script')
+      s.src = 'https://checkout.razorpay.com/v1/checkout.js'
+      document.body.appendChild(s)
+    }
+  }, [tab])
+
+  async function fetchProfile() {
+    const token = localStorage.getItem('token')
+    try {
+      const res = await fetch(API_URL + '/auth/me', { headers: { Authorization: 'Bearer ' + token } })
+      const d   = await res.json()
+      if (d.email) {
+        setProfile(p => ({ ...p, full_name: d.full_name || '', email: d.email || '', avatar_url: d.avatar_url || '' }))
+        // Load branding from /auth/me extended response
+        if (d.logo_url !== undefined) {
+          const public_url = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || ''
+          setBranding({
+            logo_url:           d.logo_url || null,
+            watermark_position: d.watermark_position || 'bottom-right',
+            watermark_enabled:  d.watermark_enabled || false,
+          })
+          if (d.logo_url) {
+            setLogoPreview(d.logo_url.startsWith('http') ? d.logo_url : `${public_url}/${d.logo_url}`)
+          }
+        }
+      }
+    } catch (e) { console.error(e) }
+  }
+
+  async function fetchPlan() {
+    const token = localStorage.getItem('token')
+    try {
+      const res = await fetch(API_URL + '/payments/my-plan', { headers: { Authorization: 'Bearer ' + token } })
+      setPlanData(await res.json())
+    } catch (e) { console.error(e) }
+  }
+
+  async function saveProfile() {
+    setSaving(true)
+    const token = localStorage.getItem('token')
+    try {
+      await fetch(API_URL + '/auth/update-profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ full_name: profile.full_name, phone: profile.phone }),
+      })
+    } catch (e) { console.error(e) }
+    setSaved(true); setTimeout(() => setSaved(false), 2500); setSaving(false)
+  }
+
+  // Logo file selection
+  function handleLogoSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'].includes(file.type)) {
+      alert('Please upload a PNG, JPG, WebP or SVG file.'); return
+    }
+    if (file.size > 2 * 1024 * 1024) { alert('Logo must be under 2MB.'); return }
+    setLogoFile(file)
+    const reader = new FileReader()
+    reader.onload = ev => setLogoPreview(ev.target.result)
+    reader.readAsDataURL(file)
+  }
+
+  async function saveBranding() {
+    setBrandingSaving(true)
+    const token = localStorage.getItem('token')
+    try {
+      let logoKey = branding.logo_url
+
+      // Upload new logo if selected
+      if (logoFile) {
+        const presignRes = await fetch(API_URL + '/auth/logo-upload-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({ filename: logoFile.name, content_type: logoFile.type }),
+        })
+        if (presignRes.ok) {
+          const { upload_url, logo_key } = await presignRes.json()
+          await fetch(upload_url, {
+            method: 'PUT',
+            headers: { 'Content-Type': logoFile.type },
+            body: logoFile,
+          })
+          logoKey = logo_key
+        }
+      }
+
+      // Save branding config
+      await fetch(API_URL + '/auth/update-branding', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          logo_url:           logoKey,
+          watermark_position: branding.watermark_position,
+          watermark_enabled:  branding.watermark_enabled,
+          watermark_opacity:  branding.watermark_opacity,
+          watermark_size:     branding.watermark_size,
+          watermark_margin_x: branding.watermark_margin_x,
+          watermark_margin_y: branding.watermark_margin_y,
+        }),
+      })
+
+      setBranding(b => ({ ...b, logo_url: logoKey }))
+      setLogoFile(null)
+      setBrandingSaved(true); setTimeout(() => setBrandingSaved(false), 2500)
+    } catch (e) { console.error(e); alert('Failed to save branding. Please try again.') }
+    setBrandingSaving(false)
+  }
+
+  async function upgrade(planKey) {
+    setPayLoading(planKey); setErrorMsg('')
+    const token = localStorage.getItem('token')
+    try {
+      const r     = await fetch(API_URL + '/payments/create-order', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ plan: planKey }),
+      })
+      const order = await r.json()
+      const opts  = {
+        key: RAZORPAY_KEY, amount: order.amount, currency: 'INR',
+        name: 'Framelyy', description: order.plan_name + ' Plan', order_id: order.order_id,
+        prefill: { name: order.photographer_name, email: order.photographer_email },
+        theme: { color: '#9b7fe8' },
+        handler: async function(resp) {
+          const v      = await fetch(API_URL + '/payments/verify-payment', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+            body: JSON.stringify({ ...resp, plan: planKey }),
+          })
+          const result = await v.json()
+          if (result.success) { setSuccessMsg('Plan activated!'); fetchPlan() }
+          else setErrorMsg('Verification failed.')
+          setPayLoading('')
+        },
+        modal: { ondismiss: function() { setPayLoading('') } },
+      }
+      new window.Razorpay(opts).open()
+    } catch (e) { setErrorMsg('Payment failed. Try again.'); setPayLoading('') }
+  }
+
+  const curPlan = PLANS.find(p => p.key === (planData && planData.current_plan)) || PLANS[0]
+  const pct     = planData ? Math.min((planData.photos_used / planData.photos_limit) * 100, 100) : 0
+  const gb      = planData ? (planData.storage_used_bytes / Math.pow(1024, 3)).toFixed(2) : '0'
+
+  const tabs = [
+    { id: 'profile',  label: 'Profile',  icon: '👤' },
+    { id: 'branding', label: 'Branding', icon: '🎨' },
+    { id: 'plan',     label: 'My Plan',  icon: '⭐' },
+    { id: 'billing',  label: 'Invoices', icon: '🧾' },
+  ]
+
+  return (
+    <div style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#2d1b69', marginBottom: 4 }}>Settings</h1>
+        <p style={{ fontSize: 13, color: '#9b89c4' }}>Manage your account, subscription and branding</p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        {/* Sidebar */}
+        <div style={{ width: 175, flexShrink: 0 }}>
+          <div style={glass({ padding: 8, borderRadius: 18 })}>
+            {tabs.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 12, border: 'none', background: tab === t.id ? 'linear-gradient(135deg,rgba(155,127,232,0.18),rgba(192,132,252,0.12))' : 'transparent', cursor: 'pointer', marginBottom: 3, textAlign: 'left' }}>
+                <span style={{ fontSize: 15 }}>{t.icon}</span>
+                <span style={{ fontSize: 13, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? '#2d1b69' : '#9b89c4' }}>{t.label}</span>
+                {tab === t.id && <div style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: '#9b7fe8' }} />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+
+          {/* ── PROFILE TAB ── */}
+          {tab === 'profile' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={glass({ padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 20 })}>
+                <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg,#9b7fe8,#c084fc)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxShadow: '0 6px 20px rgba(155,127,232,0.35)', border: '3px solid rgba(255,255,255,0.9)' }}>
+                  {profile.avatar_url
+                    ? <img src={profile.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                    : <span style={{ color: '#fff', fontSize: 26, fontWeight: 800 }}>{profile.full_name ? profile.full_name[0].toUpperCase() : 'P'}</span>}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#2d1b69', marginBottom: 2 }}>{profile.full_name || 'Your Name'}</div>
+                  <div style={{ fontSize: 13, color: '#9b89c4', marginBottom: 8 }}>{profile.email}</div>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: curPlan.bg, border: '1px solid ' + curPlan.border, color: curPlan.color }}>{curPlan.name} Plan</span>
+                </div>
+                <button onClick={saveProfile} disabled={saving} style={{ padding: '11px 24px', borderRadius: 12, background: saved ? 'rgba(34,197,94,0.15)' : 'linear-gradient(135deg,#9b7fe8,#c084fc)', color: saved ? '#15803d' : '#fff', border: saved ? '1px solid rgba(34,197,94,0.3)' : 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  {saved ? '✓ Saved!' : saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div style={glass({ padding: '22px 24px' })}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#2d1b69', marginBottom: 16 }}>👤 Personal Details</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+                    <div>
+                      <label style={lbl}>Full Name</label>
+                      <input style={inp} value={profile.full_name} onChange={e => setProfile(p => ({ ...p, full_name: e.target.value }))} placeholder="Your Name" onFocus={e => e.target.style.border='1.5px solid #9b7fe8'} onBlur={e => e.target.style.border='1.5px solid rgba(155,127,232,0.2)'} />
+                    </div>
+                    <div>
+                      <label style={lbl}>Email Address</label>
+                      <input style={{ ...inp, background: 'rgba(155,127,232,0.05)', color: '#9b89c4', cursor: 'not-allowed' }} value={profile.email} disabled />
+                      <div style={{ fontSize: 10, color: '#c4b5fd', marginTop: 3 }}>Email cannot be changed</div>
+                    </div>
+                    <div>
+                      <label style={lbl}>Mobile Number</label>
+                      <input style={inp} value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} placeholder="+91 98765 43210" onFocus={e => e.target.style.border='1.5px solid #9b7fe8'} onBlur={e => e.target.style.border='1.5px solid rgba(155,127,232,0.2)'} />
+                    </div>
+                  </div>
+                </div>
+                <div style={glass({ padding: '22px 24px' })}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#2d1b69', marginBottom: 16 }}>🏢 Business Details</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+                    <div>
+                      <label style={lbl}>Studio Name</label>
+                      <input style={inp} value={profile.company_name} onChange={e => setProfile(p => ({ ...p, company_name: e.target.value }))} placeholder="Your Studio" onFocus={e => e.target.style.border='1.5px solid #9b7fe8'} onBlur={e => e.target.style.border='1.5px solid rgba(155,127,232,0.2)'} />
+                    </div>
+                    <div>
+                      <label style={lbl}>Industry</label>
+                      <select style={{ ...inp, cursor: 'pointer' }} value={profile.industry} onChange={e => setProfile(p => ({ ...p, industry: e.target.value }))}>
+                        <option value="">Select Industry</option>
+                        {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={lbl}>Events per Year</label>
+                      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                        {EVENTS_PER_YEAR.map(opt => {
+                          const active = profile.events_per_year === opt
+                          return <button key={opt} onClick={() => setProfile(p => ({ ...p, events_per_year: opt }))} style={{ padding: '6px 13px', borderRadius: 20, border: '1.5px solid ' + (active ? '#9b7fe8' : 'rgba(155,127,232,0.2)'), background: active ? 'rgba(155,127,232,0.12)' : 'rgba(255,255,255,0.6)', color: active ? '#7c3aed' : '#9b89c4', fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer' }}>{opt}</button>
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── BRANDING TAB ── */}
+          {tab === 'branding' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Header */}
+              <div style={glass({ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' })}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#2d1b69' }}>🎨 Watermark & Branding</div>
+                  <div style={{ fontSize: 12, color: '#9b89c4', marginTop: 2 }}>Logo applied to all new uploads. Existing photos are not affected.</div>
+                </div>
+                <button onClick={saveBranding} disabled={brandingSaving} style={{ padding: '10px 24px', borderRadius: 12, background: brandingSaved ? 'rgba(34,197,94,0.15)' : 'linear-gradient(135deg,#9b7fe8,#c084fc)', color: brandingSaved ? '#15803d' : '#fff', border: brandingSaved ? '1px solid rgba(34,197,94,0.3)' : 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .2s' }}>
+                  {brandingSaved ? '✓ Saved!' : brandingSaving ? 'Saving...' : 'Save Branding'}
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 16, alignItems: 'start' }}>
+
+                {/* LEFT — Logo upload + controls */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+                  {/* Logo upload */}
+                  <div style={glass({ padding: '20px 22px' })}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#2d1b69', marginBottom: 3 }}>Studio Logo</div>
+                    <div style={{ fontSize: 11, color: '#9b89c4', marginBottom: 14 }}>PNG with transparent background recommended · Max 2MB</div>
+                    <div onClick={() => logoInputRef.current?.click()}
+                      style={{ width: '100%', aspectRatio: '3/2', borderRadius: 12, border: '2px dashed rgba(155,127,232,0.3)', background: 'rgba(155,127,232,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', marginBottom: 10, transition: 'border .15s' }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor='#9b7fe8'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor='rgba(155,127,232,0.3)'}>
+                      {logoPreview
+                        ? <img src={logoPreview} alt="logo" style={{ maxWidth: '80%', maxHeight: '80%', objectFit: 'contain' }} />
+                        : <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: 28, marginBottom: 6 }}>🖼</div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#7c3aed' }}>Click to upload logo</div>
+                            <div style={{ fontSize: 10, color: '#9b89c4', marginTop: 2 }}>PNG, JPG, SVG, WebP</div>
+                          </div>}
+                    </div>
+                    <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleLogoSelect} style={{ display: 'none' }} />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => logoInputRef.current?.click()} style={{ flex: 1, padding: '8px', borderRadius: 9, border: '1px solid rgba(155,127,232,0.25)', background: 'rgba(155,127,232,0.06)', fontSize: 12, fontWeight: 600, color: '#7c3aed', cursor: 'pointer' }}>
+                        {logoPreview ? '↺ Change Logo' : '⬆ Upload Logo'}
+                      </button>
+                      {logoPreview && (
+                        <button onClick={() => { setLogoPreview(null); setLogoFile(null); setBranding(b => ({ ...b, logo_url: null })) }}
+                          style={{ padding: '8px 12px', borderRadius: 9, border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.05)', fontSize: 12, color: '#dc2626', cursor: 'pointer', fontWeight: 600 }}>✕</button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Enable toggle */}
+                  <div style={glass({ padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: branding.watermark_enabled ? 'rgba(155,127,232,0.07)' : undefined, border: branding.watermark_enabled ? '1.5px solid rgba(155,127,232,0.3)' : undefined, transition: 'all .2s' })}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#2d1b69', marginBottom: 2 }}>Enable Watermark</div>
+                      <div style={{ fontSize: 11, color: '#9b89c4' }}>Apply to all new uploads</div>
+                    </div>
+                    <div onClick={() => setBranding(b => ({ ...b, watermark_enabled: !b.watermark_enabled }))}
+                      style={{ width: 44, height: 24, borderRadius: 12, background: branding.watermark_enabled ? '#7c3aed' : '#d1d5db', position: 'relative', cursor: 'pointer', transition: 'background .2s', flexShrink: 0 }}>
+                      <div style={{ position: 'absolute', top: 3, left: branding.watermark_enabled ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+                    </div>
+                  </div>
+
+                  {/* Controls */}
+                  <div style={glass({ padding: '18px 20px', opacity: branding.watermark_enabled ? 1 : 0.45, pointerEvents: branding.watermark_enabled ? 'auto' : 'none', transition: 'opacity .2s' })}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#2d1b69', marginBottom: 14 }}>Watermark Options</div>
+
+                    {/* Size */}
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={lbl}>Size</label>
+                      <div style={{ display: 'flex', gap: 7 }}>
+                        {['small','medium','large'].map(s => {
+                          const active = branding.watermark_size === s
+                          return (
+                            <button key={s} onClick={() => setBranding(b => ({ ...b, watermark_size: s }))}
+                              style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: `1.5px solid ${active ? '#9b7fe8' : 'rgba(155,127,232,0.2)'}`, background: active ? 'rgba(155,127,232,0.1)' : 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: active ? 700 : 500, color: active ? '#7c3aed' : '#5b4a8a', cursor: 'pointer', textTransform: 'capitalize', transition: 'all .15s' }}>
+                              {s}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Opacity */}
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <label style={{ ...lbl, marginBottom: 0 }}>Opacity</label>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed' }}>{branding.watermark_opacity}%</span>
+                      </div>
+                      <input type="range" min="10" max="100" value={branding.watermark_opacity}
+                        onChange={e => setBranding(b => ({ ...b, watermark_opacity: Number(e.target.value) }))}
+                        style={{ width: '100%', accentColor: '#7c3aed', cursor: 'pointer' }} />
+                    </div>
+
+                    {/* Margin X */}
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <label style={{ ...lbl, marginBottom: 0 }}>Horizontal Margin</label>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed' }}>{branding.watermark_margin_x}%</span>
+                      </div>
+                      <input type="range" min="0" max="20" value={branding.watermark_margin_x}
+                        onChange={e => setBranding(b => ({ ...b, watermark_margin_x: Number(e.target.value) }))}
+                        style={{ width: '100%', accentColor: '#7c3aed', cursor: 'pointer' }} />
+                    </div>
+
+                    {/* Margin Y */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <label style={{ ...lbl, marginBottom: 0 }}>Vertical Margin</label>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed' }}>{branding.watermark_margin_y}%</span>
+                      </div>
+                      <input type="range" min="0" max="20" value={branding.watermark_margin_y}
+                        onChange={e => setBranding(b => ({ ...b, watermark_margin_y: Number(e.target.value) }))}
+                        style={{ width: '100%', accentColor: '#7c3aed', cursor: 'pointer' }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* RIGHT — Position picker + Live preview */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+                  {/* 9-position grid */}
+                  <div style={glass({ padding: '18px 20px', opacity: branding.watermark_enabled ? 1 : 0.45, pointerEvents: branding.watermark_enabled ? 'auto' : 'none', transition: 'opacity .2s' })}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#2d1b69', marginBottom: 14 }}>Watermark Position</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                      {WM_POSITIONS.map(pos => {
+                        const active = branding.watermark_position === pos.id
+                        return (
+                          <button key={pos.id} onClick={() => setBranding(b => ({ ...b, watermark_position: pos.id }))}
+                            style={{ padding: '12px 8px', borderRadius: 10, border: `1.5px solid ${active ? '#7c3aed' : 'rgba(155,127,232,0.2)'}`, background: active ? '#7c3aed' : 'rgba(255,255,255,0.7)', cursor: 'pointer', transition: 'all .15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: active ? '#fff' : '#5b4a8a', textAlign: 'center', lineHeight: 1.3 }}>{pos.label}</div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Live Preview */}
+                  <WatermarkPreview branding={branding} logoPreview={logoPreview} />
+                </div>
+              </div>
+
+              <div style={glass({ padding: '14px 18px', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)' })}>
+                <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.7 }}>
+                  ⚠ <strong>Note:</strong> Watermark applies to both thumbnail and original during upload processing. Only photos uploaded <strong>after</strong> enabling will have the watermark. Face detection runs on the clean image before watermarking — so AI recognition is not affected.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── PLAN TAB ── */}
+          {tab === 'plan' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {successMsg && <div style={glass({ padding: '12px 16px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', fontSize: 13, fontWeight: 600, color: '#15803d' })}>{successMsg}</div>}
+              {errorMsg   && <div style={glass({ padding: '12px 16px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', fontSize: 13, color: '#dc2626' })}>{errorMsg}</div>}
+
+              <div style={glass({ padding: '24px 26px', border: '2px solid ' + curPlan.border })}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#9b89c4', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 5 }}>Active Plan</div>
+                    <div style={{ fontSize: 26, fontWeight: 900, color: curPlan.color, marginBottom: 3 }}>{curPlan.name}</div>
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 20, background: curPlan.color, color: '#fff' }}>
+                      {planData?.current_plan === 'starter' ? 'Free Forever' : 'Active'}
+                    </span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: curPlan.color }}>{curPlan.price === 0 ? 'Free' : `Rs. ${curPlan.priceLabel}`}</div>
+                    {curPlan.price > 0 && <div style={{ fontSize: 11, color: '#9b89c4' }}>per month</div>}
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+                  {[
+                    { label: 'Photos Used', val: `${planData?.photos_used || 0} / ${planData?.photos_limit || 1000}`, pct },
+                    { label: 'Storage',     val: `${gb} GB / ${curPlan.storage}`, pct: Math.min((parseFloat(gb) / curPlan.storageNum) * 100, 100) },
+                  ].map(s => (
+                    <div key={s.label}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#5b4a8a' }}>{s.label}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#2d1b69' }}>{s.val}</span>
+                      </div>
+                      <div style={{ height: 7, background: 'rgba(155,127,232,0.12)', borderRadius: 7, overflow: 'hidden' }}>
+                        <div style={{ height: 7, width: s.pct + '%', background: s.pct > 80 ? 'linear-gradient(90deg,#ef4444,#f97316)' : `linear-gradient(90deg,${curPlan.color},#c084fc)`, borderRadius: 7 }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
+                {PLANS.map(plan => {
+                  const isCurrent = planData?.current_plan === plan.key
+                  return (
+                    <div key={plan.key} style={glass({ padding: '20px', border: isCurrent ? `2px solid ${plan.color}` : '1px solid rgba(255,255,255,0.8)', position: 'relative' })}>
+                      {plan.badge && !isCurrent && <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 20, background: plan.color, color: '#fff', whiteSpace: 'nowrap' }}>{plan.badge}</div>}
+                      {isCurrent && <div style={{ position: 'absolute', top: 10, right: 10, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: plan.bg, color: plan.color, border: '1px solid ' + plan.border }}>Current</div>}
+                      <div style={{ fontSize: 15, fontWeight: 800, color: plan.color, marginBottom: 3 }}>{plan.name}</div>
+                      <div style={{ fontSize: 26, fontWeight: 900, color: '#2d1b69', marginBottom: 2 }}>{plan.price === 0 ? 'Free' : `Rs.${plan.priceLabel}`}</div>
+                      <div style={{ fontSize: 11, color: '#9b89c4', marginBottom: 14 }}>{plan.price === 0 ? 'forever free' : 'per month'}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 16 }}>
+                        {plan.features.map((f, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                            <span style={{ width: 14, height: 14, borderRadius: '50%', background: plan.bg, border: '1px solid ' + plan.border, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 900, color: plan.color, flexShrink: 0 }}>✓</span>
+                            <span style={{ fontSize: 11, color: '#5b4a8a' }}>{f}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {isCurrent
+                        ? <div style={{ padding: '9px', borderRadius: 10, background: plan.bg, border: '1px solid ' + plan.border, fontSize: 12, fontWeight: 700, color: plan.color, textAlign: 'center' }}>Active Plan</div>
+                        : plan.price === 0
+                        ? <div style={{ padding: '9px', borderRadius: 10, background: 'rgba(107,114,128,0.06)', fontSize: 11, color: '#9b89c4', textAlign: 'center' }}>Free tier</div>
+                        : <button onClick={() => upgrade(plan.key)} disabled={!!payLoading} style={{ width: '100%', padding: '10px', borderRadius: 10, background: payLoading === plan.key ? 'rgba(155,127,232,0.4)' : `linear-gradient(135deg,${plan.color},#c084fc)`, color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: payLoading ? 'not-allowed' : 'pointer' }}>
+                            {payLoading === plan.key ? 'Processing...' : `Upgrade to ${plan.name}`}
+                          </button>
+                      }
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── BILLING TAB ── */}
+          {tab === 'billing' && (
+            <div style={glass({ padding: '32px', textAlign: 'center' })}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>🧾</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#2d1b69', marginBottom: 6 }}>No invoices yet</div>
+              <div style={{ fontSize: 13, color: '#9b89c4' }}>Your payment history will appear here</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+

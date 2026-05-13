@@ -11,11 +11,13 @@ const EVENT_TYPES = [
   'Sports Event','Concert','Other',
 ]
 
+// ─── Layout types ─────────────────────────────────────────────────────────────
 const LAYOUTS = {
   grid: 'grid', masonry: 'masonry', featured: 'featured',
   collage: 'collage', magazine: 'magazine', filmstrip: 'filmstrip',
 }
 
+// ─── Template catalogue ───────────────────────────────────────────────────────
 const TEMPLATE_CATEGORIES = [
   {
     id: 'wedding', label: '💍 Wedding',
@@ -155,9 +157,11 @@ function Stepper({ step }) {
   )
 }
 
+// ─── ChevronRight SVG ─────────────────────────────────────────────────────────
 const ChevR = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 6.5h8M7 3l3.5 3.5L7 10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
 const ChevL = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M10.5 6.5h-8M6 3L2.5 6.5 6 10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
 
+// ─── CSS ──────────────────────────────────────────────────────────────────────
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap');
   .ce-root {
@@ -236,13 +240,9 @@ export default function CreateEvent() {
   const [selectedTemplate, setSelectedTemplate] = useState('lavender_dream')
 
   const [form, setForm] = useState({
-    name:       '',
-    start_date: new Date().toISOString().split('T')[0],
-    end_date:   new Date().toISOString().split('T')[0],
-    expires_at: '',   // ← separate data expiry — NOT tied to end_date
-    event_type: '',
-    location:   '',
-    description: '',
+    name: '', start_date: new Date().toISOString().split('T')[0],
+    end_date: new Date().toISOString().split('T')[0],
+    event_type: '', location: '', description: '',
   })
 
   function set(k, v) {
@@ -254,10 +254,7 @@ export default function CreateEvent() {
     const e = {}
     if (!form.name.trim()) e.name = 'Give your event a name.'
     if (!form.event_type) e.event_type = 'Pick an event type.'
-    if (form.start_date && form.end_date && form.end_date < form.start_date)
-      e.end_date = "End date can't be before the start."
-    if (form.expires_at && form.end_date && form.expires_at < form.end_date)
-      e.expires_at = "Expiry date should be after the event end date."
+    if (form.start_date && form.end_date && form.end_date < form.start_date) e.end_date = "End date can't be before the start."
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -267,20 +264,10 @@ export default function CreateEvent() {
     setCreating(true)
     const token = localStorage.getItem('token')
     try {
-      const payload = {
-        name:             form.name,
-        start_date:       form.start_date || null,
-        end_date:         form.end_date   || null,
-        expires_at:       form.expires_at || null,   // sent separately
-        event_type:       form.event_type || null,
-        location:         form.location   || null,
-        description:      form.description || null,
-        gallery_template: selectedTemplate,
-      }
       const res = await fetch(`${API_URL}/events/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...form, gallery_template: selectedTemplate }),
       })
       const data = await res.json()
       if (data.id) router.push(`/dashboard/events/${data.id}`)
@@ -339,47 +326,24 @@ export default function CreateEvent() {
             </div>
             {errors.name&&<div className="ce-error">⚠ {errors.name}</div>}
 
-            {/* ── Schedule ── */}
+            {/* Schedule */}
             <div className="ce-section">
-              <div className="ce-section-head">
-                <h3 className="ce-section-title">Schedule</h3>
-                <span className="ce-section-num">02</span>
-              </div>
-              <p style={{ fontSize:12.5,color:'var(--ink-mute)',margin:'0 0 16px',lineHeight:1.5 }}>
-                Set when the event takes place, and optionally when guest access and data expires.
-              </p>
-
-              {/* Event start + end — side by side */}
-              <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:16 }}>
+              <div className="ce-section-head"><h3 className="ce-section-title">Schedule</h3><span className="ce-section-num">02</span></div>
+              <p style={{ fontSize:12.5,color:'var(--ink-mute)',margin:'0 0 16px',lineHeight:1.5 }}>Guests can upload and view photos only between these dates.</p>
+              <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:14 }}>
                 <div>
-                  <label className="ce-label">Event start date</label>
+                  <label className="ce-label">Start date</label>
                   <input className="ce-input" type="date" value={form.start_date} onChange={e=>set('start_date',e.target.value)}/>
                 </div>
                 <div>
-                  <label className="ce-label">Event end date</label>
+                  <label className="ce-label">End date</label>
                   <input className={`ce-input${errors.end_date?' error':''}`} type="date" value={form.end_date} onChange={e=>set('end_date',e.target.value)}/>
                   {errors.end_date&&<div className="ce-error">⚠ {errors.end_date}</div>}
+                  <div style={{ fontSize:11.5,color:'#b45309',marginTop:6,display:'flex',alignItems:'center',gap:5 }}>
+                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1.5v4M5.5 7.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" strokeWidth="1"/></svg>
+                    Photos deleted after end date
+                  </div>
                 </div>
-              </div>
-
-              {/* Data expiry — separate optional field */}
-              <div style={{ padding:'14px 16px',borderRadius:10,border:'1px solid var(--line-soft)',background:'var(--bg-soft)' }}>
-                <label className="ce-label" style={{ marginBottom:5 }}>
-                  Data expiry date —{' '}
-                  <span style={{ fontWeight:400,textTransform:'none',letterSpacing:0 }}>optional</span>
-                </label>
-                <p style={{ fontSize:12,color:'var(--ink-mute)',margin:'0 0 12px',lineHeight:1.55 }}>
-                  Photos and guest data are permanently deleted on this date.
-                  Leave empty to keep data until you manually delete the event.
-                </p>
-                <input
-                  className="ce-input"
-                  type="date"
-                  value={form.expires_at}
-                  onChange={e=>set('expires_at',e.target.value)}
-                  style={{ maxWidth:220,background:'var(--bg)' }}
-                />
-                {errors.expires_at&&<div className="ce-error">⚠ {errors.expires_at}</div>}
               </div>
             </div>
 
@@ -469,18 +433,8 @@ export default function CreateEvent() {
 
             {/* Summary strip */}
             <div style={{ border:'1px solid var(--line)',borderRadius:12,padding:'16px 20px',marginBottom:28,background:'var(--bg-soft)',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:12,alignItems:'center' }}>
-              {[
-                ['Event',    form.name],
-                ['Type',     form.event_type],
-                ['Start',    form.start_date],
-                ['End',      form.end_date],
-                ['Expires',  form.expires_at || '—'],
-                ['Location', form.location   || '—'],
-              ].map(([k,v])=>(
-                <div key={k}>
-                  <div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--ink-mute)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>{k}</div>
-                  <div style={{fontSize:13,fontWeight:500,color:'var(--ink)',wordBreak:'break-word'}}>{v}</div>
-                </div>
+              {[['Event',form.name],['Type',form.event_type],['Start',form.start_date],['End',form.end_date],['Location',form.location||'—']].map(([k,v])=>(
+                <div key={k}><div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--ink-mute)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>{k}</div><div style={{fontSize:13,fontWeight:500,color:'var(--ink)',wordBreak:'break-word'}}>{v}</div></div>
               ))}
               <button className="ce-btn ce-btn-outline" style={{fontSize:11.5,padding:'5px 11px',justifySelf:'start'}} onClick={()=>setStep(1)}>← Edit</button>
             </div>

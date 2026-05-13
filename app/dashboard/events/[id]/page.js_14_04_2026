@@ -1,0 +1,1108 @@
+'use client'
+import { useState, useEffect, useRef } from 'react'
+import { useParams } from 'next/navigation'
+import Link from 'next/link'
+
+const API_URL            = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const CONCURRENT_UPLOADS = 3
+const MAX_RETRIES        = 3
+const COMPRESS_MAX_PX    = 1920
+const UI_THROTTLE_MS     = 400
+
+// Compression quality presets
+const QUALITY_PRESETS = [
+  { label: 'High',   value: 0.92, desc: 'Best quality, larger file' },
+  { label: 'Medium', value: 0.80, desc: 'Balanced — recommended'    },
+  { label: 'Low',    value: 0.65, desc: 'Smallest file, fast upload' },
+]
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+function formatDate(s) {
+  if (!s) return null
+  try { return new Date(s).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) }
+  catch { return null }
+}
+function formatSize(b) {
+  if (!b) return null
+  if (b < 1024)    return `${b} B`
+  if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`
+  return `${(b / 1048576).toFixed(1)} MB`
+}
+
+// ─── QRCode ───────────────────────────────────────────────────────────────────
+function QRCode({ url, size = 160 }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!url || !ref.current) return
+    import('qrcode').then(lib =>
+      lib.default.toCanvas(ref.current, url, {
+        width: size, margin: 2,
+        color: { dark: '#2d1b69', light: '#ffffff' },
+        errorCorrectionLevel: 'M',
+      })
+    )
+  }, [url, size])
+  return <canvas ref={ref} style={{ borderRadius: 12, display: 'block' }} width={size} height={size} />
+}
+
+// ─── PhotoCard ────────────────────────────────────────────────────────────────
+// Only renders photos with status === 'ready' (grid filters before passing).
+// Hover shows action bar: View / Download / Select.
+function PhotoCard({ photo, index, onOpen, onDownload, onToggleSelect, selected }) {
+  const [hovered,  setHovered]  = useState(false)
+  const [imgError, setImgError] = useState(false)
+
+  const filename  = photo.storage_key?.split('/').pop()?.split('_').slice(1).join('_')
+                 || photo.storage_key?.split('/').pop() || 'photo.jpg'
+  const sizeLabel = formatSize(photo.file_size_bytes)
+  const dateLabel = formatDate(photo.created_at || photo.uploaded_at)
+  const hue       = (index * 47) % 360
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        borderRadius: 16, overflow: 'hidden',
+        background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)',
+        border: `1px solid ${selected ? '#9b7fe8' : hovered ? 'rgba(155,127,232,0.35)' : 'rgba(255,255,255,0.7)'}`,
+        boxShadow: selected ? '0 0 0 3px rgba(155,127,232,0.35)' : hovered ? '0 12px 32px rgba(155,127,232,0.18)' : '0 2px 12px rgba(100,80,180,0.06)',
+        transform: hovered ? 'translateY(-3px)' : 'none',
+        transition: 'all .22s cubic-bezier(.4,0,.2,1)', cursor: 'pointer', position: 'relative',
+      }}
+    >
+      {/* Selection checkbox — top-left, visible on hover or when selected */}
+      <div
+        onClick={e => { e.stopPropagation(); onToggleSelect(photo.id) }}
+        style={{
+          position: 'absolute', top: 10, left: 10, zIndex: 3,
+          width: 22, height: 22, borderRadius: 6,
+          background: selected ? '#7c3aed' : 'rgba(255,255,255,0.9)',
+          border: `2px solid ${selected ? '#7c3aed' : 'rgba(155,127,232,0.4)'}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          opacity: hovered || selected ? 1 : 0,
+          transition: 'opacity .15s, background .15s',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+        }}
+      >
+        {selected && (
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <polyline points="2,6 5,9 10,3" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )}
+      </div>
+
+      <div
+        onClick={() => onOpen(photo)}
+        style={{ position: 'relative', aspectRatio: '4/3', overflow: 'hidden', background: `hsl(${hue},30%,92%)` }}
+      >
+        {/* Server thumbnail only */}
+        {!imgError && photo.thumb_url ? (
+          <img
+            src={photo.thumb_url}
+            alt={filename}
+            loading="lazy"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform .3s', transform: hovered ? 'scale(1.06)' : 'scale(1)' }}
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(155,127,232,0.4)" strokeWidth="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+            </svg>
+            <span style={{ fontSize: 10, color: 'rgba(155,127,232,0.55)', fontWeight: 500 }}>No preview</span>
+          </div>
+        )}
+
+        {/* Hover action bar — slides up from bottom */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          padding: '10px 10px 10px',
+          background: 'linear-gradient(to top, rgba(20,10,50,0.75) 0%, transparent 100%)',
+          display: 'flex', gap: 6, justifyContent: 'flex-end',
+          opacity: hovered ? 1 : 0,
+          transform: hovered ? 'translateY(0)' : 'translateY(6px)',
+          transition: 'opacity .18s, transform .18s',
+        }}>
+          {/* View */}
+          <button
+            onClick={e => { e.stopPropagation(); onOpen(photo) }}
+            title="View"
+            style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(6px)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .15s' }}
+            onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.35)'}
+            onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.2)'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg>
+          </button>
+          {/* Download */}
+          <button
+            onClick={e => { e.stopPropagation(); onDownload(photo) }}
+            title="Download"
+            style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(6px)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .15s' }}
+            onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.35)'}
+            onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.2)'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ padding: '10px 12px 12px' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#2d1b69', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 6 }} title={filename}>
+          {filename}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+          {sizeLabel && (
+            <span style={{ fontSize: 10, color: '#9b89c4', background: 'rgba(155,127,232,0.08)', padding: '2px 7px', borderRadius: 6, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 3 }}>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+              {sizeLabel}
+            </span>
+          )}
+          {dateLabel && (
+            <span style={{ fontSize: 10, color: '#9b89c4', background: 'rgba(155,127,232,0.08)', padding: '2px 7px', borderRadius: 6, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 3 }}>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              {dateLabel}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── PhotoViewer (Lightbox) ───────────────────────────────────────────────────
+// Opens on card click. Shows full photo.url, download button, prev/next nav.
+// Keyboard: ArrowLeft / ArrowRight / Escape
+function PhotoViewer({ photos, currentIndex, onClose, onDownload }) {
+  const [idx, setIdx] = useState(currentIndex)
+
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === 'ArrowRight') setIdx(i => Math.min(i + 1, photos.length - 1))
+      if (e.key === 'ArrowLeft')  setIdx(i => Math.max(i - 1, 0))
+      if (e.key === 'Escape')     onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [photos.length, onClose])
+
+  const photo    = photos[idx]
+  const filename = photo.storage_key?.split('/').pop()?.split('_').slice(1).join('_')
+                || photo.storage_key?.split('/').pop() || 'photo.jpg'
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 2000,
+        background: 'rgba(10,5,30,0.92)', backdropFilter: 'blur(10px)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      {/* Top bar */}
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          position: 'absolute', top: 0, left: 0, right: 0,
+          height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 20px',
+          background: 'linear-gradient(to bottom, rgba(10,5,30,0.8), transparent)',
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>
+          {idx + 1} / {photos.length} — {filename}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => onDownload(photo)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download
+          </button>
+          <button
+            onClick={onClose}
+            style={{ width: 34, height: 34, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >✕</button>
+        </div>
+      </div>
+
+      {/* Prev button */}
+      {idx > 0 && (
+        <button
+          onClick={e => { e.stopPropagation(); setIdx(i => i - 1) }}
+          style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}
+        >‹</button>
+      )}
+
+      {/* Image */}
+      <img
+        src={photo.url || photo.thumb_url}
+        alt={filename}
+        onClick={e => e.stopPropagation()}
+        style={{ maxWidth: 'calc(100vw - 120px)', maxHeight: 'calc(100vh - 100px)', borderRadius: 12, objectFit: 'contain', boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }}
+      />
+
+      {/* Next button */}
+      {idx < photos.length - 1 && (
+        <button
+          onClick={e => { e.stopPropagation(); setIdx(i => i + 1) }}
+          style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}
+        >›</button>
+      )}
+
+      {/* Bottom filmstrip counter dots */}
+      <div style={{ position: 'absolute', bottom: 16, display: 'flex', gap: 5, alignItems: 'center' }}>
+        {photos.length <= 20 && photos.map((_, i) => (
+          <div
+            key={i}
+            onClick={e => { e.stopPropagation(); setIdx(i) }}
+            style={{ width: i === idx ? 18 : 6, height: 6, borderRadius: 3, background: i === idx ? '#9b7fe8' : 'rgba(255,255,255,0.3)', transition: 'all .2s', cursor: 'pointer' }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── UploadProgressBar ────────────────────────────────────────────────────────
+// UNTOUCHED — architecture is working perfectly.
+// Reads progressRef on a throttled interval; never causes parent re-renders.
+function UploadProgressBar({ progressRef, uploading, onClear }) {
+  const [snap, setSnap] = useState({ done: 0, total: 0, avgSaving: 0, errors: 0, dupes: 0 })
+
+  useEffect(() => {
+    const id = setInterval(() => setSnap({ ...progressRef.current }), UI_THROTTLE_MS)
+    return () => clearInterval(id)
+  }, [])
+
+  const pct = snap.total > 0 ? Math.round((snap.done / snap.total) * 100) : 0
+
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.28)', backdropFilter: 'blur(20px)',
+      WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.55)',
+      borderRadius: 20, padding: '18px 22px',
+      boxShadow: '0 4px 24px rgba(100,80,180,0.08), inset 0 1px 0 rgba(255,255,255,0.5)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+            background: uploading ? '#9b7fe8' : '#22c55e',
+            ...(uploading ? { animation: 'pulse 1s ease-in-out infinite' } : {})
+          }} />
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#2d1b69' }}>
+            {uploading ? 'Uploading photos…' : 'Upload complete — loading gallery…'}
+          </span>
+        </div>
+        {!uploading && (
+          <button onClick={onClear} style={{ fontSize: 11, color: '#9b89c4', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>
+            Clear
+          </button>
+        )}
+      </div>
+
+      <div style={{ height: 8, background: 'rgba(155,127,232,0.15)', borderRadius: 8, overflow: 'hidden', marginBottom: 10 }}>
+        <div style={{
+          height: 8, width: `${pct}%`, borderRadius: 8,
+          background: uploading ? 'linear-gradient(90deg,#9b7fe8,#c084fc)' : 'linear-gradient(90deg,#22c55e,#4ade80)',
+          transition: `width ${UI_THROTTLE_MS}ms ease-out`,
+        }} />
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 13, color: '#7c6aaa', fontWeight: 600 }}>
+          {snap.done} / {snap.total} photos
+          {snap.dupes  > 0 && <span style={{ color: '#d97706' }}> · {snap.dupes} skipped</span>}
+          {snap.errors > 0 && <span style={{ color: '#ef4444' }}> · {snap.errors} failed</span>}
+        </span>
+        <span style={{ fontSize: 14, fontWeight: 800, color: uploading ? '#7c3aed' : '#15803d' }}>{pct}%</span>
+      </div>
+
+      {snap.avgSaving > 0 && (
+        <div style={{ marginTop: 8, fontSize: 11, color: '#15803d', fontWeight: 600 }}>
+          ↓ {snap.avgSaving}% avg file size saved by compression
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── CompressionModal ─────────────────────────────────────────────────────────
+// Shown after file selection, before upload begins.
+// Free plan: compress is forced (checkbox locked).
+// Paid plan: can toggle compression off, and choose quality preset.
+function CompressionModal({ files, userPlan, onConfirm, onCancel }) {
+  const isPaid        = userPlan === 'paid'
+  // Free users must compress. Paid users default to compress but can disable.
+  const [compress,    setCompress]    = useState(true)
+  const [qualityIdx,  setQualityIdx]  = useState(1)   // default: Medium (index 1)
+
+  const totalSize     = files.reduce((s, f) => s + f.size, 0)
+  const selectedQuality = QUALITY_PRESETS[qualityIdx]
+
+  // Rough estimated output size based on typical compression ratios
+  const estimatedRatio = compress
+    ? (qualityIdx === 0 ? 0.35 : qualityIdx === 1 ? 0.20 : 0.12)
+    : 1
+  const estimatedSize = totalSize * estimatedRatio
+
+  return (
+    // Backdrop
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(20,10,50,0.55)', backdropFilter: 'blur(6px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20,
+    }}>
+      {/* Modal box */}
+      <div style={{
+        width: '100%', maxWidth: 480,
+        background: 'rgba(255,255,255,0.97)',
+        borderRadius: 24, overflow: 'hidden',
+        boxShadow: '0 32px 80px rgba(45,27,105,0.22)',
+        border: '1px solid rgba(155,127,232,0.2)',
+      }}>
+
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#2d1b69,#4b0082)', padding: '20px 24px' }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 4 }}>
+            Ready to upload {files.length} photo{files.length > 1 ? 's' : ''}
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
+            Total size: {formatSize(totalSize)}
+          </div>
+        </div>
+
+        <div style={{ padding: '20px 24px 24px' }}>
+
+          {/* Compress toggle row */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '14px 16px', borderRadius: 14,
+            background: compress ? 'rgba(155,127,232,0.07)' : 'rgba(0,0,0,0.03)',
+            border: `1.5px solid ${compress ? 'rgba(155,127,232,0.3)' : 'rgba(0,0,0,0.08)'}`,
+            marginBottom: 16, transition: 'all .2s',
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#2d1b69', marginBottom: 2 }}>
+                Compress images
+              </div>
+              <div style={{ fontSize: 11, color: '#9b89c4' }}>
+                {isPaid
+                  ? 'Paid plan — you can upload originals'
+                  : 'Free plan — compression is required'}
+              </div>
+            </div>
+
+            {/* Toggle switch */}
+            <div
+              onClick={() => isPaid && setCompress(v => !v)}
+              style={{
+                width: 44, height: 24, borderRadius: 12, flexShrink: 0,
+                background: compress ? '#7c3aed' : '#d1d5db',
+                position: 'relative', transition: 'background .2s',
+                cursor: isPaid ? 'pointer' : 'not-allowed',
+                opacity: isPaid ? 1 : 0.6,
+              }}
+            >
+              <div style={{
+                position: 'absolute', top: 3,
+                left: compress ? 23 : 3,
+                width: 18, height: 18, borderRadius: '50%',
+                background: '#fff',
+                transition: 'left .2s',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+              }} />
+            </div>
+          </div>
+
+          {/* Quality picker — only shown when compression is on */}
+          {compress && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#5b4a8a', marginBottom: 10, letterSpacing: '.04em', textTransform: 'uppercase' }}>
+                Compression Quality
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                {QUALITY_PRESETS.map((p, i) => (
+                  <button
+                    key={p.label}
+                    onClick={() => setQualityIdx(i)}
+                    style={{
+                      padding: '10px 8px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                      background: qualityIdx === i ? 'linear-gradient(135deg,#9b7fe8,#c084fc)' : 'rgba(155,127,232,0.06)',
+                      outline: qualityIdx === i ? '2px solid #9b7fe8' : '2px solid transparent',
+                      outlineOffset: 2, transition: 'all .15s',
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, color: qualityIdx === i ? '#fff' : '#2d1b69', marginBottom: 3 }}>
+                      {p.label}
+                    </div>
+                    <div style={{ fontSize: 10, color: qualityIdx === i ? 'rgba(255,255,255,0.8)' : '#9b89c4', lineHeight: 1.4 }}>
+                      {p.desc}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Size estimate row */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '10px 14px', borderRadius: 10,
+            background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)',
+            marginBottom: 20,
+          }}>
+            <span style={{ fontSize: 12, color: '#5b4a8a', fontWeight: 500 }}>Estimated upload size</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#15803d' }}>
+              {compress
+                ? `~${formatSize(estimatedSize)} (↓ ~${Math.round((1 - estimatedRatio) * 100)}%)`
+                : formatSize(totalSize)
+              }
+            </span>
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={onCancel}
+              style={{ flex: 1, padding: '12px', borderRadius: 12, border: '1.5px solid rgba(155,127,232,0.2)', background: 'transparent', fontSize: 13, fontWeight: 600, color: '#7c6aaa', cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => onConfirm({ compress, quality: compress ? selectedQuality.value : null })}
+              style={{ flex: 2, padding: '12px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#2d1b69,#4b0082)', fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 14px rgba(75,0,130,0.35)' }}
+            >
+              Start Upload →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+export default function EventDetail() {
+  const { id }  = useParams()
+  const fileRef = useRef(null)
+
+  // ── Simulated user plan — replace with real auth context ──────────────────
+  // 'free'  → compression forced, quality locked
+  // 'paid'  → can disable compression or choose quality
+  const userPlan = 'paid'   // TODO: replace with useAuth().user.plan
+
+  const [event,         setEvent]         = useState(null)
+  const [photos,        setPhotos]        = useState([])
+  const [loading,       setLoading]       = useState(true)
+  const [uploading,     setUploading]     = useState(false)
+  const [showProgress,  setShowProgress]  = useState(false)
+  const [activeSection, setActiveSection] = useState('all')
+  const [searchQuery,   setSearchQuery]   = useState('')
+  const [viewMode,      setViewMode]      = useState('grid')
+  const [copied,        setCopied]        = useState(false)
+  const [visibleCount,  setVisibleCount]  = useState(30)
+
+  // Compression modal state
+  const [pendingFiles,  setPendingFiles]  = useState(null)   // files waiting for modal confirm
+  const [showModal,     setShowModal]     = useState(false)
+
+  // Selection + viewer state
+  const [selectedIds,   setSelectedIds]   = useState(new Set())
+  const [viewerIndex,   setViewerIndex]   = useState(null)   // null = closed
+
+  // Upload counters live in a ref — never trigger parent re-renders
+  const progressRef = useRef({ done: 0, total: 0, errors: 0, dupes: 0, savingSum: 0, savingCount: 0, avgSaving: 0 })
+
+  useEffect(() => { loadEvent(); loadPhotos() }, [id])
+  useEffect(() => { setVisibleCount(30) }, [activeSection, searchQuery])
+
+  async function loadEvent() {
+    const token = localStorage.getItem('token')
+    const res   = await fetch(`${API_URL}/events/`, { headers: { Authorization: `Bearer ${token}` } })
+    const evs   = await res.json()
+    if (Array.isArray(evs)) { const ev = evs.find(e => e.id === id); if (ev) setEvent(ev) }
+  }
+
+  // loadPhotos: no optimistic preview logic — only real server records
+  async function loadPhotos() {
+    const token = localStorage.getItem('token')
+    try {
+      const res  = await fetch(`${API_URL}/photos/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+      const data = await res.json()
+      if (Array.isArray(data)) setPhotos(data)
+    } catch (e) { console.error(e) }
+    setLoading(false)
+  }
+
+  // ── Compression ───────────────────────────────────────────────────────────
+  // Returns a Blob — always a re-encoded JPEG. Never returns the original File
+  // to prevent full-resolution images leaking into the UI via blob URLs.
+  async function compressImage(file, quality) {
+    return new Promise(resolve => {
+      const isHEIC = /\.(heic|heif)$/i.test(file.name) || /heic|heif/.test(file.type)
+      if (isHEIC) { resolve(new Blob([file], { type: file.type })); return }
+
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      const fallback = () => resolve(new Blob([file], { type: 'image/jpeg' }))
+
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        let w = img.naturalWidth, h = img.naturalHeight
+        const m = Math.max(w, h)
+        if (m > COMPRESS_MAX_PX) { const s = COMPRESS_MAX_PX / m; w = Math.round(w * s); h = Math.round(h * s) }
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { fallback(); return }
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h)
+        ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'
+        ctx.drawImage(img, 0, 0, w, h)
+        // Always output the re-encoded JPEG — never the original File object
+        canvas.toBlob(blob => resolve(blob || new Blob([file], { type: 'image/jpeg' })), 'image/jpeg', quality)
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); fallback() }
+      img.src = url
+    })
+  }
+
+  async function computeHash(blob) {
+    try {
+      const buf = await blob.arrayBuffer()
+      const h   = await crypto.subtle.digest('SHA-256', buf)
+      return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join('')
+    } catch { return `${blob.size}_${Date.now()}_${Math.random().toString(36).slice(2)}` }
+  }
+
+  // ── uploadSingleFile ──────────────────────────────────────────────────────
+  // compressOpts: { compress: bool, quality: number|null }
+  // If compress=false (paid users only): uploads the raw file bytes directly.
+  // All XHR progress → ref mutation only. No setState in the hot path.
+  async function uploadSingleFile(file, compressOpts) {
+    const token = localStorage.getItem('token')
+
+    // Decide what bytes to send to R2
+    let payload, savingPct
+    if (compressOpts.compress) {
+      const blob = await compressImage(file, compressOpts.quality)
+      savingPct  = Math.max(0, Math.round((1 - blob.size / file.size) * 100))
+      payload    = blob
+    } else {
+      // Paid user chose to skip compression — upload original bytes
+      payload   = new Blob([file], { type: file.type })
+      savingPct = 0
+    }
+
+    const fileHash = await computeHash(payload)
+
+    const presignRes = await fetch(`${API_URL}/photos/${id}/presign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        filename:     file.name.replace(/[^a-zA-Z0-9._-]/g, '_'),
+        file_hash:    fileHash,
+        file_size:    payload.size,
+        content_type: compressOpts.compress ? 'image/jpeg' : (file.type || 'image/jpeg'),
+      }),
+    })
+    if (presignRes.status === 402) {
+      const err = await presignRes.json().catch(() => ({}))
+      throw new Error(err.detail?.code || 'quota_exceeded')
+    }
+    if (!presignRes.ok) throw new Error(`presign_${presignRes.status}`)
+
+    const presignData = await presignRes.json()
+    if (presignData.status === 'duplicate') return { status: 'duplicate' }
+
+    const { photo_id, upload_url, storage_key } = presignData
+
+    // XHR PUT — progress writes to ref only, never setState
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('PUT', upload_url, true)
+      xhr.setRequestHeader('Content-Type', compressOpts.compress ? 'image/jpeg' : (file.type || 'image/jpeg'))
+      xhr.onload    = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`r2_${xhr.status}`))
+      xhr.onerror   = () => reject(new Error('network_error'))
+      xhr.timeout   = 300000
+      xhr.ontimeout = () => reject(new Error('upload_timeout'))
+      xhr.send(payload)
+    })
+
+    const confirmRes = await fetch(`${API_URL}/photos/${id}/confirm/${photo_id}`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!confirmRes.ok) throw new Error(`confirm_${confirmRes.status}`)
+
+    // payload blob goes out of scope here — GC-eligible after return
+    return { status: 'done', photo_id, storage_key, saving: savingPct }
+  }
+
+  // ── File selection: show modal first, don't start upload yet ─────────────
+  function handleFileSelect(e) {
+    const raw = Array.from(e.target.files || [])
+    if (fileRef.current) fileRef.current.value = ''
+    if (!raw.length) return
+
+    // Deduplicate
+    const seen = new Set()
+    const files = raw.filter(f => {
+      const k = `${f.name}_${f.size}`; if (seen.has(k)) return false; seen.add(k); return true
+    })
+
+    setPendingFiles(files)
+    setShowModal(true)
+  }
+
+  // ── Modal confirmed: start upload with chosen options ────────────────────
+  function handleModalConfirm(compressOpts) {
+    setShowModal(false)
+    const files = pendingFiles
+    setPendingFiles(null)
+    startUpload(files, compressOpts)
+  }
+
+  function handleModalCancel() {
+    setShowModal(false)
+    setPendingFiles(null)
+  }
+
+  // ── Core upload loop ──────────────────────────────────────────────────────
+  // A setInterval polls loadPhotos() every 4s throughout the upload.
+  // Celery typically finishes a thumbnail in 2-4s after confirm, so by the
+  // time the next poll fires the thumb_url is ready and appears in the grid.
+  // This means photo 1 shows up while photos 2-20 are still uploading.
+  // The final explicit loadPhotos() after the loop catches anything missed.
+  // setUploading(false) only fires after that final call resolves.
+  async function startUpload(files, compressOpts) {
+    progressRef.current = { done: 0, total: files.length, errors: 0, dupes: 0, savingSum: 0, savingCount: 0, avgSaving: 0 }
+    setShowProgress(true)
+    setUploading(true)
+
+    // Guard against overlapping poll calls if loadPhotos() takes > 4s
+    let pollBusy = false
+    const pollInterval = setInterval(async () => {
+      if (pollBusy) return
+      pollBusy = true
+      await loadPhotos()
+      pollBusy = false
+    }, 4000)
+
+    try {
+      for (let i = 0; i < files.length; i += CONCURRENT_UPLOADS) {
+        const batch = files.slice(i, i + CONCURRENT_UPLOADS)
+        await Promise.allSettled(batch.map(async file => {
+          let lastErr
+          for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+              const result = await uploadSingleFile(file, compressOpts)
+              if (result.status === 'duplicate') {
+                progressRef.current.dupes++
+                progressRef.current.done++
+              } else if (result.status === 'done') {
+                progressRef.current.done++
+                if (result.saving > 0) {
+                  progressRef.current.savingSum   += result.saving
+                  progressRef.current.savingCount += 1
+                  progressRef.current.avgSaving    = Math.round(progressRef.current.savingSum / progressRef.current.savingCount)
+                }
+              }
+              return
+            } catch (err) {
+              lastErr = err
+              if (err.message?.includes('quota')) {
+                progressRef.current.errors++
+                progressRef.current.done++
+                return
+              }
+              if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, 1500 * attempt))
+            }
+          }
+          progressRef.current.errors++
+          progressRef.current.done++
+          console.error(`Upload failed: ${file.name}`, lastErr?.message)
+        }))
+      }
+    } finally {
+      clearInterval(pollInterval)   // always stop polling — even if something throws
+    }
+
+    // Final fetch — catches anything Celery finished between the last poll and now
+    await loadPhotos()
+
+    // Bar flips to "Upload complete" only after this final loadPhotos() resolves
+    setUploading(false)
+  }
+
+  function copyLink() {
+    navigator.clipboard.writeText(`${window.location.origin}/guest/${event?.slug}`)
+    setCopied(true); setTimeout(() => setCopied(false), 2000)
+  }
+
+  function downloadQR() {
+    import('qrcode').then(lib => {
+      const c = document.createElement('canvas'), u = `${window.location.origin}/guest/${event?.slug}`
+      lib.default.toCanvas(c, u, { width: 512, margin: 3, color: { dark: '#2d1b69', light: '#fff' }, errorCorrectionLevel: 'H' }, () => {
+        const a = document.createElement('a'); a.href = c.toDataURL('image/png'); a.download = `${event?.slug || 'event'}-qr.png`
+        document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      })
+    })
+  }
+
+  function shareWhatsApp() {
+    const u = `${window.location.origin}/guest/${event?.slug}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(`Find your photos from ${event?.name}! 📸\n${u}`)}`, '_blank')
+  }
+
+  // ── Photo viewer helpers ──────────────────────────────────────────────────
+  const readyPhotos = photos.filter(p => p.status === 'ready')
+
+  function handleOpen(photo) {
+    const idx = readyPhotos.findIndex(p => p.id === photo.id)
+    setViewerIndex(idx >= 0 ? idx : 0)
+  }
+
+  function handleDownload(photo) {
+    const url      = photo.url || photo.thumb_url
+    const filename = photo.storage_key?.split('/').pop()?.split('_').slice(1).join('_')
+                  || photo.storage_key?.split('/').pop() || 'photo.jpg'
+    const a = document.createElement('a')
+    a.href     = url
+    a.download = filename
+    a.target   = '_blank'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+  }
+
+  function handleToggleSelect(photoId) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(photoId) ? next.delete(photoId) : next.add(photoId)
+      return next
+    })
+  }
+
+  function handleDownloadSelected() {
+    readyPhotos.filter(p => selectedIds.has(p.id)).forEach(handleDownload)
+  }
+
+  const ready      = photos.filter(p => p.status === 'ready').length
+  const processing = photos.filter(p => p.status === 'pending' || p.status === 'processing').length
+  const failed     = photos.filter(p => p.status === 'failed').length
+  const guestUrl   = event ? `${typeof window !== 'undefined' ? window.location.origin : ''}/guest/${event.slug}` : ''
+
+  const filteredPhotos = photos.filter(p => {
+    // 'all' view shows only ready — pending/processing/failed have their own tabs
+    if (activeSection === 'all')        return p.status === 'ready'
+    if (activeSection === 'ready')      return p.status === 'ready'
+    if (activeSection === 'processing') return p.status === 'pending' || p.status === 'processing'
+    if (activeSection === 'failed')     return p.status === 'failed'
+    return p.status === 'ready'
+  }).filter(p => !searchQuery || p.storage_key?.includes(searchQuery))
+
+  const visiblePhotos = filteredPhotos.slice(0, visibleCount)
+  const hasMore       = visibleCount < filteredPhotos.length
+
+  const glass = (extra = {}) => ({
+    background: 'rgba(255,255,255,0.28)', backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.55)',
+    borderRadius: 20, boxShadow: '0 4px 24px rgba(100,80,180,0.08), inset 0 1px 0 rgba(255,255,255,0.5)',
+    ...extra,
+  })
+
+  const sideItems = [
+    { id: 'all',        icon: '⊞', label: 'All Photos', count: photos.length },
+    { id: 'ready',      icon: '✓', label: 'Ready',      count: ready        },
+    { id: 'processing', icon: '◷', label: 'In Queue',   count: processing   },
+    { id: 'failed',     icon: '⚠', label: 'Failed',     count: failed       },
+  ]
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#e8e4f8,#d4d0f5 15%,#e2d4f0 30%,#f5d6e8 50%,#fce4d6 65%,#e8d4f0 80%,#d8e0f8)', fontFamily: "'Inter',system-ui,sans-serif" }}>
+
+      {/* Ambient blobs */}
+      {[{ w:400,bg:'#c4b5fd',t:-80,l:-60 },{ w:300,bg:'#fbcfe8',t:100,r:-40 },{ w:350,bg:'#bfdbfe',b:-60,l:200 }].map((b,i)=>(
+        <div key={i} style={{ position:'fixed',width:b.w,height:b.w,background:b.bg,borderRadius:'50%',filter:'blur(60px)',opacity:.25,pointerEvents:'none',top:b.t,left:b.l,right:b.r,bottom:b.b,zIndex:0 }} />
+      ))}
+
+      {/* Compression modal */}
+      {showModal && pendingFiles && (
+        <CompressionModal
+          files={pendingFiles}
+          userPlan={userPlan}
+          onConfirm={handleModalConfirm}
+          onCancel={handleModalCancel}
+        />
+      )}
+
+      {/* Photo viewer (lightbox) */}
+      {viewerIndex !== null && (
+        <PhotoViewer
+          photos={readyPhotos}
+          currentIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+          onDownload={handleDownload}
+        />
+      )}
+
+      {/* Selection action bar — floats at bottom when photos are selected */}
+      {selectedIds.size > 0 && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 500, display: 'flex', alignItems: 'center', gap: 10,
+          background: 'rgba(45,27,105,0.95)', backdropFilter: 'blur(12px)',
+          borderRadius: 16, padding: '10px 16px',
+          boxShadow: '0 8px 32px rgba(45,27,105,0.35)',
+          border: '1px solid rgba(155,127,232,0.3)',
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#e9d5ff' }}>
+            {selectedIds.size} selected
+          </span>
+          <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.15)' }} />
+          <button
+            onClick={handleDownloadSelected}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '1px solid rgba(155,127,232,0.4)', background: 'rgba(155,127,232,0.2)', color: '#e9d5ff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download all
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            style={{ padding: '7px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      <div style={{ position:'relative',zIndex:1,display:'flex',flexDirection:'column',minHeight:'100vh' }}>
+
+        {/* ── TOPBAR ── */}
+        <div style={{ background:'rgba(255,255,255,0.85)',backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',borderBottom:'1px solid rgba(155,127,232,0.12)',padding:'0 20px',flexShrink:0 }}>
+          <div style={{ height:58,display:'flex',alignItems:'center',gap:12 }}>
+            <Link href="/dashboard/events" style={{ display:'flex',alignItems:'center',gap:6,color:'#9b89c4',textDecoration:'none',fontSize:13,fontWeight:600,padding:'6px 10px',borderRadius:10,background:'rgba(155,127,232,0.08)',border:'1px solid rgba(155,127,232,0.15)' }}>← Events</Link>
+            <div style={{ width:1,height:20,background:'rgba(155,127,232,0.2)' }} />
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:15,fontWeight:800,color:'#2d1b69',letterSpacing:'-.02em' }}>{event?.name||'Loading…'}</div>
+              <div style={{ fontSize:11,color:'#9b89c4',marginTop:1 }}>{event?.event_type||'Event'} · {event?.location||''} · /{event?.slug}</div>
+            </div>
+
+            {/* Plan badge */}
+            <div style={{ padding:'4px 12px',borderRadius:20,background:userPlan==='paid'?'rgba(124,58,237,0.1)':'rgba(245,158,11,0.1)',border:`1px solid ${userPlan==='paid'?'rgba(124,58,237,0.25)':'rgba(245,158,11,0.25)'}`,fontSize:11,fontWeight:700,color:userPlan==='paid'?'#7c3aed':'#d97706' }}>
+              {userPlan==='paid'?'✦ Paid':'Free'}
+            </div>
+
+            <div style={{ display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:20,background:event?.is_published?'rgba(22,163,74,0.1)':'rgba(156,163,175,0.15)',border:`1px solid ${event?.is_published?'rgba(22,163,74,0.2)':'rgba(156,163,175,0.3)'}` }}>
+              <div style={{ width:7,height:7,borderRadius:'50%',background:event?.is_published?'#22c55e':'#9ca3af' }} />
+              <span style={{ fontSize:12,fontWeight:700,color:event?.is_published?'#15803d':'#6b7280' }}>{event?.is_published?'Published':'Unpublished'}</span>
+            </div>
+            <div style={{ padding:'6px 14px',borderRadius:20,background:'rgba(155,127,232,0.1)',border:'1px solid rgba(155,127,232,0.2)',fontSize:12,fontWeight:700,color:'#7c3aed' }}>{photos.length} Photos</div>
+            <button onClick={copyLink} style={{ padding:'8px 18px',borderRadius:12,background:copied?'rgba(22,163,74,0.15)':'linear-gradient(135deg,#9b7fe8,#c084fc)',color:copied?'#15803d':'#fff',border:copied?'1px solid rgba(22,163,74,0.3)':'none',fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .2s' }}>
+              {copied?'✓ Copied!':'↗ Share'}
+            </button>
+            <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{ padding:'8px 18px',borderRadius:12,background:'#2d1b69',color:'#fff',border:'none',fontSize:13,fontWeight:700,cursor:uploading?'not-allowed':'pointer',opacity:uploading?0.7:1 }}>
+              ⬆ Upload
+            </button>
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/jpg,image/webp,image/heic" multiple onChange={handleFileSelect} style={{ display:'none' }} />
+          </div>
+        </div>
+
+        <div style={{ display:'flex',flex:1 }}>
+
+          {/* ── LEFT PANEL ── */}
+          <div style={{ width:240,flexShrink:0,padding:16,display:'flex',flexDirection:'column',gap:12 }}>
+
+            <div style={{ ...glass(),overflow:'hidden',borderRadius:18 }}>
+              <div style={{ height:120,background:'linear-gradient(135deg,#9b7fe8,#c084fc,#f472b6)',position:'relative',display:'flex',alignItems:'center',justifyContent:'center' }}>
+                <div style={{ fontSize:32 }}>📸</div>
+                <div style={{ position:'absolute',bottom:8,left:0,right:0,display:'flex',justifyContent:'center' }}>
+                  <button style={{ padding:'4px 12px',borderRadius:20,background:'rgba(255,255,255,0.9)',fontSize:11,fontWeight:600,color:'#2d1b69',border:'none',cursor:'pointer' }}>Change Cover ✎</button>
+                </div>
+              </div>
+              <div style={{ padding:'14px 16px' }}>
+                <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:8 }}>
+                  {[{ n:photos.length,l:'Photos' },{ n:0,l:'Videos' }].map((s,i)=>(
+                    <div key={i} style={{ textAlign:'center',padding:'8px 0',background:'rgba(255,255,255,0.4)',borderRadius:10,border:'1px solid rgba(155,127,232,0.1)' }}>
+                      <div style={{ fontSize:20,fontWeight:800,color:'#2d1b69' }}>{String(s.n).padStart(2,'0')}</div>
+                      <div style={{ fontSize:10,color:'#9b89c4',fontWeight:500 }}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+                <button style={{ width:'100%',marginTop:10,padding:'8px',borderRadius:10,border:'1px solid rgba(155,127,232,0.25)',background:'rgba(155,127,232,0.06)',fontSize:12,color:'#7c3aed',fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5 }}>+ Add Collection</button>
+              </div>
+            </div>
+
+            <div style={{ ...glass(),padding:'16px' }}>
+              <div style={{ fontSize:11,fontWeight:700,color:'#5b4a8a',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:12 }}>📱 Guest QR Code</div>
+              <div style={{ display:'flex',justifyContent:'center',marginBottom:12,background:'#fff',borderRadius:14,padding:10,border:'1px solid rgba(155,127,232,0.15)' }}>
+                {guestUrl?<QRCode url={guestUrl} size={160} />:(
+                  <div style={{ width:160,height:160,display:'flex',alignItems:'center',justifyContent:'center' }}>
+                    <div style={{ width:28,height:28,border:'3px solid rgba(155,127,232,0.2)',borderTop:'3px solid #9b7fe8',borderRadius:'50%',animation:'spin .8s linear infinite' }} />
+                  </div>
+                )}
+              </div>
+              <div style={{ background:'rgba(255,255,255,0.6)',border:'1px solid rgba(155,127,232,0.15)',borderRadius:10,padding:'7px 10px',fontSize:10,color:'#7c6aaa',wordBreak:'break-all',lineHeight:1.5,marginBottom:10 }}>{guestUrl}</div>
+              <div style={{ display:'flex',flexDirection:'column',gap:6 }}>
+                <button onClick={copyLink} style={{ width:'100%',padding:'8px',borderRadius:10,background:copied?'rgba(22,163,74,0.12)':'linear-gradient(135deg,#9b7fe8,#c084fc)',color:copied?'#15803d':'#fff',border:copied?'1px solid rgba(22,163,74,0.25)':'none',fontSize:12,fontWeight:700,cursor:'pointer',transition:'all .2s',display:'flex',alignItems:'center',justifyContent:'center',gap:5 }}>
+                  {copied?'✓ Link Copied!':'🔗 Copy Guest Link'}
+                </button>
+                <button onClick={downloadQR} style={{ width:'100%',padding:'8px',borderRadius:10,background:'rgba(255,255,255,0.7)',border:'1px solid rgba(155,127,232,0.25)',fontSize:12,fontWeight:600,color:'#7c3aed',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5 }}>⬇ Download QR</button>
+                <button onClick={shareWhatsApp} style={{ width:'100%',padding:'8px',borderRadius:10,background:'rgba(37,211,102,0.1)',border:'1px solid rgba(37,211,102,0.3)',fontSize:12,fontWeight:600,color:'#15803d',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5 }}>💬 Share on WhatsApp</button>
+              </div>
+            </div>
+
+            <div style={{ ...glass(),padding:'14px 16px' }}>
+              <div style={{ fontSize:11,fontWeight:700,color:'#5b4a8a',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:10 }}>Collections</div>
+              {sideItems.map(item=>(
+                <button key={item.id} onClick={()=>setActiveSection(item.id)} style={{ width:'100%',display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,border:'none',background:activeSection===item.id?'linear-gradient(135deg,rgba(155,127,232,0.15),rgba(192,132,252,0.1))':'transparent',cursor:'pointer',marginBottom:2,transition:'all .15s' }}>
+                  <span style={{ fontSize:14,color:activeSection===item.id?'#7c3aed':'#9b89c4' }}>{item.icon}</span>
+                  <span style={{ fontSize:13,fontWeight:activeSection===item.id?700:500,color:activeSection===item.id?'#2d1b69':'#7c6aaa',flex:1,textAlign:'left' }}>{item.label}</span>
+                  <span style={{ fontSize:11,fontWeight:700,padding:'1px 7px',borderRadius:20,background:activeSection===item.id?'rgba(155,127,232,0.15)':'rgba(0,0,0,0.05)',color:activeSection===item.id?'#7c3aed':'#9b89c4' }}>{item.count}</span>
+                </button>
+              ))}
+            </div>
+
+            <div style={{ ...glass(),padding:'14px 16px' }}>
+              <div style={{ fontSize:11,fontWeight:700,color:'#5b4a8a',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:12 }}>Processing Status</div>
+              {[
+                { label:'Ready',    val:ready,      color:'#22c55e',bg:'rgba(34,197,94,0.1)'  },
+                { label:'In Queue', val:processing, color:'#f59e0b',bg:'rgba(245,158,11,0.1)' },
+                { label:'Failed',   val:failed,     color:'#ef4444',bg:'rgba(239,68,68,0.1)'  },
+              ].map(s=>(
+                <div key={s.label} style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid rgba(155,127,232,0.06)' }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:7 }}>
+                    <div style={{ width:8,height:8,borderRadius:'50%',background:s.color }} />
+                    <span style={{ fontSize:12,color:'#7c6aaa',fontWeight:500 }}>{s.label}</span>
+                  </div>
+                  <span style={{ fontSize:13,fontWeight:800,color:s.color,background:s.bg,padding:'2px 8px',borderRadius:20 }}>{s.val}</span>
+                </div>
+              ))}
+              <button onClick={loadPhotos} style={{ width:'100%',marginTop:12,padding:'8px',borderRadius:10,border:'1px solid rgba(155,127,232,0.2)',background:'rgba(255,255,255,0.5)',fontSize:12,fontWeight:600,color:'#7c3aed',cursor:'pointer' }}>↺ Refresh</button>
+            </div>
+          </div>
+
+          {/* ── MAIN CONTENT ── */}
+          <div style={{ flex:1,padding:'16px 20px 16px 0',display:'flex',flexDirection:'column',gap:12 }}>
+
+            {/* Progress bar — stays visible until setUploading(false) after loadPhotos() */}
+            {showProgress && (
+              <UploadProgressBar
+                progressRef={progressRef}
+                uploading={uploading}
+                onClear={()=>{
+                  setShowProgress(false)
+                  progressRef.current={ done:0,total:0,errors:0,dupes:0,savingSum:0,savingCount:0,avgSaving:0 }
+                }}
+              />
+            )}
+
+            {/* Toolbar */}
+            <div style={{ ...glass(),padding:'12px 16px',display:'flex',alignItems:'center',gap:10 }}>
+              <div style={{ position:'relative',flex:1,maxWidth:320 }}>
+                <span style={{ position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:14,color:'#c4b5fd' }}>🔍</span>
+                <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Search by filename…"
+                  style={{ width:'100%',padding:'8px 12px 8px 34px',border:'1.5px solid rgba(155,127,232,0.18)',borderRadius:12,fontSize:13,color:'#2d1b69',background:'rgba(255,255,255,0.6)',outline:'none',fontFamily:'inherit',boxSizing:'border-box' }}
+                  onFocus={e=>e.target.style.border='1.5px solid #9b7fe8'}
+                  onBlur={e=>e.target.style.border='1.5px solid rgba(155,127,232,0.18)'} />
+              </div>
+              <div style={{ flex:1 }} />
+              <div style={{ display:'flex',background:'rgba(255,255,255,0.5)',border:'1px solid rgba(155,127,232,0.18)',borderRadius:10,padding:3,gap:2 }}>
+                {[{v:'grid',icon:'⊞'},{v:'list',icon:'≡'}].map(m=>(
+                  <button key={m.v} onClick={()=>setViewMode(m.v)} style={{ width:30,height:28,borderRadius:8,border:'none',background:viewMode===m.v?'linear-gradient(135deg,#9b7fe8,#c084fc)':'transparent',color:viewMode===m.v?'#fff':'#9b89c4',fontSize:15,cursor:'pointer',transition:'all .15s' }}>{m.icon}</button>
+                ))}
+              </div>
+              <button onClick={()=>fileRef.current?.click()} disabled={uploading}
+                style={{ padding:'8px 18px',borderRadius:12,background:'linear-gradient(135deg,#2d1b69,#4b0082)',color:'#fff',border:'none',fontSize:13,fontWeight:700,cursor:uploading?'not-allowed':'pointer',boxShadow:'0 3px 12px rgba(75,0,130,0.3)',opacity:uploading?0.6:1 }}>
+                ⬆ Upload Photos
+              </button>
+            </div>
+
+            {/* Photo grid / list */}
+            {loading ? (
+              <div style={{ ...glass(),flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:60 }}>
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ width:48,height:48,border:'3px solid rgba(155,127,232,0.2)',borderTop:'3px solid #9b7fe8',borderRadius:'50%',animation:'spin .8s linear infinite',margin:'0 auto 16px' }} />
+                  <div style={{ fontSize:14,color:'#9b89c4' }}>Loading photos…</div>
+                </div>
+              </div>
+            ) : filteredPhotos.length === 0 ? (
+              <div style={{ ...glass(),flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:60 }}>
+                <div style={{ textAlign:'center',maxWidth:360 }}>
+                  <div style={{ width:120,height:120,borderRadius:28,background:'linear-gradient(135deg,rgba(155,127,232,0.15),rgba(192,132,252,0.1))',border:'1px solid rgba(155,127,232,0.2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:48,margin:'0 auto 20px',animation:'float 3s ease-in-out infinite' }}>📷</div>
+                  <div style={{ fontSize:18,fontWeight:800,color:'#2d1b69',marginBottom:8 }}>{searchQuery?'No photos match':'No photos yet'}</div>
+                  <div style={{ fontSize:14,color:'#9b89c4',marginBottom:24,lineHeight:1.6 }}>{searchQuery?'Try a different search term':'Upload your event photos to get started'}</div>
+                  {!searchQuery&&<button onClick={()=>fileRef.current?.click()} style={{ padding:'13px 32px',borderRadius:14,background:'linear-gradient(135deg,#9b7fe8,#c084fc)',color:'#fff',border:'none',fontSize:15,fontWeight:700,cursor:'pointer',boxShadow:'0 6px 20px rgba(155,127,232,0.4)' }}>⬆ Upload Photos</button>}
+                </div>
+              </div>
+            ) : viewMode==='grid' ? (
+              <div style={{ display:'flex',flexDirection:'column',gap:12 }}>
+                <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12 }}>
+                  {visiblePhotos.map((photo,i)=>(
+                    <PhotoCard
+                      key={photo.id||i}
+                      photo={photo}
+                      index={i}
+                      selected={selectedIds.has(photo.id)}
+                      onOpen={handleOpen}
+                      onDownload={handleDownload}
+                      onToggleSelect={handleToggleSelect}
+                    />
+                  ))}
+                </div>
+                {hasMore&&(
+                  <div style={{ display:'flex',justifyContent:'center',padding:'8px 0' }}>
+                    <button onClick={()=>setVisibleCount(v=>v+30)} style={{ padding:'10px 28px',borderRadius:12,border:'1px solid rgba(155,127,232,0.25)',background:'rgba(255,255,255,0.6)',fontSize:13,fontWeight:600,color:'#7c3aed',cursor:'pointer' }}>
+                      Load more · {filteredPhotos.length-visibleCount} remaining
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ ...glass(),overflow:'hidden' }}>
+                <div style={{ display:'grid',gridTemplateColumns:'40px 1fr 100px 100px 120px',background:'linear-gradient(135deg,rgba(75,0,130,0.8),rgba(99,38,163,0.85))',padding:'10px 16px' }}>
+                  {['#','Filename','Status','Size','Date'].map(h=>(
+                    <div key={h} style={{ fontSize:10,fontWeight:700,color:'rgba(255,255,255,0.8)',letterSpacing:'.05em' }}>{h}</div>
+                  ))}
+                </div>
+                {filteredPhotos.map((p,i)=>{
+                  const fn = p.storage_key?.split('/').pop()?.split('_').slice(1).join('_')||p.storage_key?.split('/').pop()||'—'
+                  const dt = formatDate(p.created_at||p.uploaded_at)
+                  return (
+                    <div key={p.id} style={{ display:'grid',gridTemplateColumns:'40px 1fr 100px 100px 120px',padding:'10px 16px',borderBottom:'1px solid rgba(155,127,232,0.06)',transition:'background .1s' }}
+                      onMouseEnter={e=>e.currentTarget.style.background='rgba(155,127,232,0.05)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      <div style={{ fontSize:12,color:'#9b89c4' }}>{i+1}</div>
+                      <div style={{ display:'flex',alignItems:'center',gap:10 }}>
+                        {p.thumb_url
+                          ?<img src={p.thumb_url} alt="" loading="lazy" style={{ width:32,height:32,borderRadius:7,objectFit:'cover',flexShrink:0 }} onError={e=>{e.target.style.display='none'}} />
+                          :<div style={{ width:32,height:32,borderRadius:7,flexShrink:0,background:`hsl(${(i*47)%360},25%,90%)`,display:'flex',alignItems:'center',justifyContent:'center' }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(155,127,232,0.5)" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                          </div>
+                        }
+                        <span style={{ fontSize:12,color:'#2d1b69',fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{fn}</span>
+                      </div>
+                      <div><span style={{ fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:20,background:p.status==='ready'?'rgba(34,197,94,0.12)':p.status==='failed'?'rgba(239,68,68,0.12)':'rgba(245,158,11,0.12)',color:p.status==='ready'?'#15803d':p.status==='failed'?'#dc2626':'#d97706' }}>{p.status}</span></div>
+                      <div style={{ fontSize:12,color:'#9b89c4' }}>{formatSize(p.file_size_bytes)||'—'}</div>
+                      <div style={{ fontSize:11,color:'#9b89c4' }}>{dt||'—'}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes spin    { to { transform: rotate(360deg); } }
+        @keyframes float   { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+        @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        @keyframes pulse   { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+      `}</style>
+    </div>
+  )
+}
+

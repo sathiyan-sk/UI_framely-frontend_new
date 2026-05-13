@@ -1,12 +1,12 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { register } from '../../lib/api'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-export default function Register() {
+function RegisterInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [fullName, setFullName] = useState('')
@@ -65,15 +65,11 @@ export default function Register() {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '20px', position: 'relative', overflow: 'hidden',
     }}>
-
-      {/* Radial glows */}
       <div style={{ position:'fixed', inset:0, background:'radial-gradient(ellipse 80% 60% at 50% 30%, rgba(255,220,200,0.45) 0%, transparent 70%)', pointerEvents:'none' }} />
       <div style={{ position:'fixed', inset:0, background:'radial-gradient(ellipse 60% 50% at 20% 70%, rgba(200,190,255,0.3) 0%, transparent 60%)', pointerEvents:'none' }} />
       <div style={{ position:'fixed', inset:0, background:'radial-gradient(ellipse 50% 40% at 80% 20%, rgba(251,207,232,0.3) 0%, transparent 60%)', pointerEvents:'none' }} />
 
       <div style={{ position:'relative', zIndex:1, width:'100%', maxWidth:460 }}>
-
-        {/* Logo */}
         <div style={{ textAlign:'center', marginBottom:28 }}>
           <Link href="/" style={{ display:'inline-flex', alignItems:'center', gap:8, textDecoration:'none' }}>
             <div style={{ width:42, height:42, borderRadius:14, background:'linear-gradient(135deg,#9b7fe8,#c084fc)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:800, fontSize:18, boxShadow:'0 4px 16px rgba(155,127,232,0.4)' }}>P</div>
@@ -81,28 +77,16 @@ export default function Register() {
           </Link>
         </div>
 
-        {/* Card */}
         <div style={{ background:'rgba(255,255,255,0.55)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', border:'1px solid rgba(255,255,255,0.8)', borderRadius:28, padding:'36px 36px 32px', boxShadow:'0 8px 48px rgba(155,127,232,0.15), inset 0 1px 0 rgba(255,255,255,0.9)' }}>
-
-          {/* Header */}
           <div style={{ textAlign:'center', marginBottom:28 }}>
             <h1 style={{ fontSize:26, fontWeight:800, color:'#2d1b69', letterSpacing:'-.03em', marginBottom:6 }}>Create your account</h1>
             <p style={{ fontSize:14, color:'#9b89c4' }}>Start sharing photos with face recognition</p>
           </div>
 
-          {/* ── Google button WIRED UP ── */}
-          <button
-            onClick={handleGoogleLogin}
-            style={{
-              width: '100%', padding: '12px 16px', borderRadius: 14,
-              background: 'rgba(255,255,255,0.9)', border: '1.5px solid rgba(155,127,232,0.2)',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 10, fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 16,
-              transition: 'all .15s', boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-            }}
+          <button onClick={handleGoogleLogin}
+            style={{ width:'100%', padding:'12px 16px', borderRadius:14, background:'rgba(255,255,255,0.9)', border:'1.5px solid rgba(155,127,232,0.2)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, fontSize:14, fontWeight:600, color:'#374151', marginBottom:16, transition:'all .15s', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' }}
             onMouseEnter={e => { e.currentTarget.style.background='#fff'; e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.1)'; e.currentTarget.style.border='1.5px solid rgba(155,127,232,0.4)' }}
-            onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.9)'; e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'; e.currentTarget.style.border='1.5px solid rgba(155,127,232,0.2)' }}
-          >
+            onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.9)'; e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'; e.currentTarget.style.border='1.5px solid rgba(155,127,232,0.2)' }}>
             <svg width="18" height="18" viewBox="0 0 48 48">
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
               <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -112,7 +96,6 @@ export default function Register() {
             Continue with Google — no form needed
           </button>
 
-          {/* Divider */}
           <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:24 }}>
             <div style={{ flex:1, height:1, background:'rgba(155,127,232,0.15)' }} />
             <span style={{ fontSize:12, color:'#c4b5fd', fontWeight:600 }}>or register with email</span>
@@ -120,44 +103,37 @@ export default function Register() {
           </div>
 
           <form onSubmit={handleSubmit}>
-
             {error && (
               <div style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:12, padding:'10px 14px', fontSize:13, color:'#dc2626', marginBottom:18, display:'flex', alignItems:'center', gap:8 }}>
                 <span>⚠</span> {error}
               </div>
             )}
 
-            {/* Full name */}
             <div style={{ marginBottom:16 }}>
               <label style={{ fontSize:13, fontWeight:600, color:'#5b4a8a', marginBottom:7, display:'block' }}>Full name</label>
               <div style={{ position:'relative' }}>
                 <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:15, color:'#c4b5fd' }}>👤</span>
-                <input type="text" value={fullName} onChange={e=>setFullName(e.target.value)}
-                  placeholder="Rahul Sharma" required style={inputStyle}
+                <input type="text" value={fullName} onChange={e=>setFullName(e.target.value)} placeholder="Rakshan" required style={inputStyle}
                   onFocus={e=>e.target.style.border='1.5px solid #9b7fe8'}
                   onBlur={e=>e.target.style.border='1.5px solid rgba(155,127,232,0.2)'} />
               </div>
             </div>
 
-            {/* Email */}
             <div style={{ marginBottom:16 }}>
               <label style={{ fontSize:13, fontWeight:600, color:'#5b4a8a', marginBottom:7, display:'block' }}>Email address</label>
               <div style={{ position:'relative' }}>
                 <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:15, color:'#c4b5fd' }}>✉</span>
-                <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-                  placeholder="you@example.com" required style={inputStyle}
+                <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required style={inputStyle}
                   onFocus={e=>e.target.style.border='1.5px solid #9b7fe8'}
                   onBlur={e=>e.target.style.border='1.5px solid rgba(155,127,232,0.2)'} />
               </div>
             </div>
 
-            {/* Password */}
             <div style={{ marginBottom:8 }}>
               <label style={{ fontSize:13, fontWeight:600, color:'#5b4a8a', marginBottom:7, display:'block' }}>Password</label>
               <div style={{ position:'relative' }}>
                 <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:15, color:'#c4b5fd' }}>🔒</span>
-                <input type={showPass?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)}
-                  placeholder="Min. 8 characters" required
+                <input type={showPass?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Min. 8 characters" required
                   style={{ ...inputStyle, paddingRight:44 }}
                   onFocus={e=>e.target.style.border='1.5px solid #9b7fe8'}
                   onBlur={e=>e.target.style.border='1.5px solid rgba(155,127,232,0.2)'} />
@@ -168,7 +144,6 @@ export default function Register() {
               </div>
             </div>
 
-            {/* Password strength */}
             {password.length > 0 && (
               <div style={{ marginBottom:16 }}>
                 <div style={{ display:'flex', gap:4, marginBottom:4 }}>
@@ -180,13 +155,11 @@ export default function Register() {
               </div>
             )}
 
-            {/* Confirm password */}
             <div style={{ marginBottom:18 }}>
               <label style={{ fontSize:13, fontWeight:600, color:'#5b4a8a', marginBottom:7, display:'block' }}>Confirm password</label>
               <div style={{ position:'relative' }}>
                 <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:15, color:'#c4b5fd' }}>🔒</span>
-                <input type={showConfirm?'text':'password'} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)}
-                  placeholder="••••••••" required
+                <input type={showConfirm?'text':'password'} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="••••••••" required
                   style={{ ...inputStyle, paddingRight:44, ...(confirmPassword && password !== confirmPassword ? { border:'1.5px solid rgba(239,68,68,0.5)' } : {}) }}
                   onFocus={e=>e.target.style.border='1.5px solid #9b7fe8'}
                   onBlur={e=>e.target.style.border=confirmPassword && password !== confirmPassword?'1.5px solid rgba(239,68,68,0.5)':'1.5px solid rgba(155,127,232,0.2)'} />
@@ -200,7 +173,6 @@ export default function Register() {
               </div>
             </div>
 
-            {/* Terms */}
             <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:24, cursor:'pointer' }} onClick={()=>setAgreed(!agreed)}>
               <div style={{ width:18, height:18, borderRadius:6, border:'1.5px solid rgba(155,127,232,0.4)', background:agreed?'linear-gradient(135deg,#9b7fe8,#c084fc)':'rgba(255,255,255,0.7)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1, transition:'all .15s' }}>
                 {agreed && <span style={{ color:'#fff', fontSize:11 }}>✓</span>}
@@ -213,7 +185,6 @@ export default function Register() {
               </span>
             </div>
 
-            {/* Submit */}
             <button type="submit" disabled={loading}
               style={{ width:'100%', padding:13, borderRadius:14, background:loading?'rgba(155,127,232,0.5)':'linear-gradient(135deg,#9b7fe8,#c084fc)', color:'#fff', border:'none', fontSize:15, fontWeight:700, cursor:loading?'not-allowed':'pointer', boxShadow:'0 6px 20px rgba(155,127,232,0.4)', transition:'all .2s', letterSpacing:'-.01em' }}
               onMouseEnter={e=>{ if(!loading) e.currentTarget.style.boxShadow='0 8px 28px rgba(155,127,232,0.55)' }}
@@ -228,21 +199,31 @@ export default function Register() {
           </form>
         </div>
 
-        {/* Login link */}
         <p style={{ textAlign:'center', fontSize:14, color:'#9b89c4', marginTop:20 }}>
           Already have an account?{' '}
           <Link href="/login" style={{ color:'#9b7fe8', fontWeight:700, textDecoration:'none' }}>Sign in →</Link>
         </p>
 
-        {/* Trust badges */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:20, marginTop:24 }}>
           {['🔒 SSL Secured','🇮🇳 India Hosted','✓ GDPR Safe'].map((b,i)=>(
             <span key={i} style={{ fontSize:11, color:'#c4b5fd', fontWeight:500 }}>{b}</span>
           ))}
         </div>
       </div>
-
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
+  )
+}
+
+export default function Register() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,#ddd6fe 0%,#e9d5ff 20%,#fbcfe8 50%,#fde68a 80%,#ddd6fe 100%)' }}>
+        <div style={{ width:48, height:48, border:'3px solid rgba(155,127,232,0.3)', borderTop:'3px solid #9b7fe8', borderRadius:'50%', animation:'spin .8s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    }>
+      <RegisterInner />
+    </Suspense>
   )
 }

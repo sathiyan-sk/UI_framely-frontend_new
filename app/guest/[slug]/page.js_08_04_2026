@@ -26,77 +26,6 @@ const ANIM = `
   }
 `
 
-// ─── Event Expired Modal ──────────────────────────────────────────────────────
-function EventExpiredModal({ onClose }) {
-  const [visible, setVisible] = useState(false)
-  useEffect(() => { setTimeout(() => setVisible(true), 60) }, [])
-
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 400,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(13,13,26,0.88)', backdropFilter: 'blur(22px)',
-      fontFamily: "'Inter',system-ui,sans-serif", padding: '20px',
-    }}>
-      <style>{ANIM}</style>
-      <div style={{
-        background: 'rgba(255,255,255,0.97)', borderRadius: 28,
-        padding: '32px 28px', maxWidth: 420, width: '100%',
-        boxShadow: '0 32px 80px rgba(45,27,105,0.28)',
-        opacity: visible ? 1 : 0,
-        transform: visible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(20px)',
-        transition: 'all .35s cubic-bezier(.4,0,.2,1)',
-        textAlign: 'center',
-      }}>
-        <div style={{
-          width: 88, height: 88, borderRadius: '50%',
-          background: 'rgba(239,68,68,0.08)',
-          border: '2px solid rgba(239,68,68,0.2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 20px',
-          animation: 'float 3s ease-in-out infinite',
-        }}>
-          <span style={{ fontSize: 38 }}>⏰</span>
-        </div>
-
-        <div style={{ fontSize: 20, fontWeight: 800, color: '#2d1b69', marginBottom: 8, letterSpacing: '-.02em' }}>
-          Event Has Expired
-        </div>
-        <div style={{ fontSize: 13, color: '#7c6aaa', lineHeight: 1.7, marginBottom: 20 }}>
-          This event has ended and the photo gallery is no longer accessible.<br />
-          Please contact the photographer if you need your photos.
-        </div>
-
-        <div style={{
-          display: 'flex', alignItems: 'flex-start', gap: 10,
-          padding: '12px 14px',
-          background: 'rgba(239,68,68,0.06)',
-          border: '1px solid rgba(239,68,68,0.18)',
-          borderRadius: 14, marginBottom: 22, textAlign: 'left'
-        }}>
-          <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>📋</span>
-          <div style={{ fontSize: 12, color: '#7f1d1d', lineHeight: 1.6 }}>
-            Event galleries are available for a limited time after the event. Your photographer can share photos directly if needed.
-          </div>
-        </div>
-
-        <button onClick={onClose} style={{
-          width: '100%', padding: '14px', borderRadius: 16,
-          background: 'linear-gradient(135deg,#9b7fe8,#c084fc)',
-          color: '#fff', border: 'none', fontSize: 14, fontWeight: 700,
-          cursor: 'pointer', boxShadow: '0 6px 20px rgba(155,127,232,0.4)',
-          fontFamily: 'inherit',
-        }}>
-          Got it
-        </button>
-        <p style={{ marginTop: 12, fontSize: 11, color: '#c4b5fd', fontWeight: 500 }}>
-          🔒 Powered by Framely
-        </p>
-      </div>
-    </div>
-  )
-}
-
 // ─── Not Published Modal ──────────────────────────────────────────────────────
 function NotPublishedModal({ guestName, phone, email, onClose }) {
   const [visible, setVisible] = useState(false)
@@ -119,6 +48,7 @@ function NotPublishedModal({ guestName, phone, email, onClose }) {
         transition: 'all .35s cubic-bezier(.4,0,.2,1)',
         textAlign: 'center',
       }}>
+        {/* Animated bell icon */}
         <div style={{ position: 'relative', width: 88, height: 88, margin: '0 auto 20px' }}>
           <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '2px solid rgba(155,127,232,0.2)', animation: 'pulse 2.5s ease infinite' }} />
           <div style={{
@@ -140,6 +70,7 @@ function NotPublishedModal({ guestName, phone, email, onClose }) {
           The photographer is still preparing your photos.
         </div>
 
+        {/* Notification cards */}
         <div style={{
           background: 'linear-gradient(135deg,rgba(155,127,232,0.08),rgba(192,132,252,0.05))',
           border: '1.5px solid rgba(155,127,232,0.2)',
@@ -149,6 +80,7 @@ function NotPublishedModal({ guestName, phone, email, onClose }) {
             We'll notify you when it's live
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* SMS */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'rgba(255,255,255,0.7)', borderRadius: 12, border: '1px solid rgba(155,127,232,0.1)' }}>
               <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <span style={{ fontSize: 15 }}>📱</span>
@@ -161,6 +93,7 @@ function NotPublishedModal({ guestName, phone, email, onClose }) {
                 <div style={{ padding: '3px 8px', borderRadius: 20, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', fontSize: 10, fontWeight: 700, color: '#15803d' }}>✓ Registered</div>
               </div>
             </div>
+            {/* Email */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'rgba(255,255,255,0.7)', borderRadius: 12, border: '1px solid rgba(155,127,232,0.1)' }}>
               <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <span style={{ fontSize: 15 }}>✉️</span>
@@ -176,6 +109,7 @@ function NotPublishedModal({ guestName, phone, email, onClose }) {
           </div>
         </div>
 
+        {/* Info tip */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 14, marginBottom: 22, textAlign: 'left' }}>
           <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>⏳</span>
           <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.6 }}>
@@ -296,7 +230,7 @@ function PremiumInput({ label, type = 'text', value, onChange, placeholder, icon
 }
 
 // ─── Page 1: Guest Landing ────────────────────────────────────────────────────
-function GuestLanding({ event, slug, onPublished, onNotPublished, onExpired }) {
+function GuestLanding({ event, slug, onPublished, onNotPublished }) {
   const [name,    setName]    = useState('')
   const [email,   setEmail]   = useState('')
   const [phone,   setPhone]   = useState('')
@@ -321,17 +255,14 @@ function GuestLanding({ event, slug, onPublished, onNotPublished, onExpired }) {
         body:    JSON.stringify(info),
       }).catch(() => {}) // non-fatal
 
-      // Step 2 — check if event is published (and not expired)
+      // Step 2 — check if event is published
       const res = await fetch(`${API_URL}/events/guest/${slug}`)
 
       if (res.ok) {
-        // Published and active → go to camera
+        // Published → go to camera
         onPublished(info)
-      } else if (res.status === 410) {
-        // Event has expired
-        onExpired(info)
       } else if (res.status === 404) {
-        // Not published yet → show waiting modal
+        // Not published → show waiting modal
         onNotPublished(info)
       } else {
         setError('Something went wrong. Please try again.')
@@ -608,11 +539,6 @@ function GalleryPage({ photos, guestName, onFaceSearch, searching, slug, event }
       const res = await fetch(`${API_URL}/search/${slug}/prepare-zip`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(photoIds)
       })
-      if (res.status === 410) {
-        setZipStage(null)
-        alert('This event has expired. Downloads are no longer available.')
-        return
-      }
       if (!res.ok) throw new Error(`Server error: ${res.status}`)
       const { token } = await res.json()
       setZipStage('downloading')
@@ -724,11 +650,12 @@ function GuestPageInner() {
   const [page,         setPage]         = useState('landing')
   const [guestInfo,    setGuestInfo]    = useState(null)
   const [photos,       setPhotos]       = useState([])
+  // notPublished: holds guest info when event unpublished — triggers modal
   const [notPublished, setNotPublished] = useState(null)
-  const [expired,      setExpired]      = useState(false)
 
-  // Always start at landing — never restore page from session.
-  // Only restore non-sensitive guest info and photos.
+  // ── NEVER restore page from sessionStorage ─────────────────────────────────
+  // Always start at landing so the publish check runs on every visit.
+  // Only restore guest info and photos (non-security data).
   useEffect(() => {
     const savedGuest  = sessionStorage.getItem(`owl_guest_${slug}`)
     const savedPhotos = sessionStorage.getItem(`owl_photos_${slug}`)
@@ -736,15 +663,9 @@ function GuestPageInner() {
     if (savedPhotos) try { setPhotos(JSON.parse(savedPhotos)) }    catch {}
   }, [slug])
 
-  function persistPage(p)   { setPage(p) }
+  function persistPage(p)   { setPage(p) }   // no sessionStorage for page
   function persistGuest(g)  { sessionStorage.setItem(`owl_guest_${slug}`, JSON.stringify(g)); setGuestInfo(g) }
   function persistPhotos(p) { sessionStorage.setItem(`owl_photos_${slug}`, JSON.stringify(p)); setPhotos(p) }
-
-  // Clear session data when event is expired so stale photos are not shown
-  function clearSession() {
-    sessionStorage.removeItem(`owl_guest_${slug}`)
-    sessionStorage.removeItem(`owl_photos_${slug}`)
-  }
 
   useEffect(() => {
     getEventBySlug(slug).then(d => { if (d?.name) setEvent(d) }).catch(() => {})
@@ -755,52 +676,28 @@ function GuestPageInner() {
     persistPage('gallery')
     try {
       const file = new File([blob], 'selfie.jpg', { type: 'image/jpeg' })
-      const res  = await fetch(`${API_URL}/search/${slug}`, {
-        method: 'POST',
-        body: (() => { const fd = new FormData(); fd.append('file', file); return fd })(),
-      })
-      if (res.status === 410) {
-        // Event expired mid-session
-        clearSession()
-        setExpired(true)
-        persistPage('landing')
-        setSearching(false)
-        return
-      }
-      if (!res.ok) throw new Error(`Search failed: ${res.status}`)
-      const data = await res.json()
+      const data = await searchFaces(slug, file)
       if (data.matches) persistPhotos(data.matches)
-    } catch (e) {
-      console.error('Face search error:', e)
-    }
+    } catch (e) { console.error(e) }
     setSearching(false)
   }
 
+  // Called when publish check passes — go to camera
   function handlePublished(info) {
     persistGuest(info)
     persistPage('camera')
   }
 
+  // Called when publish check fails — show modal, stay on landing
   function handleNotPublished(info) {
     persistGuest(info)
     setNotPublished(info)
   }
 
-  function handleExpired(info) {
-    persistGuest(info)
-    clearSession()
-    setExpired(true)
-  }
-
   return (
     <>
-      {/* Expired modal — overlays landing page */}
-      {expired && (
-        <EventExpiredModal onClose={() => setExpired(false)} />
-      )}
-
       {/* Not-published modal — overlays landing page */}
-      {notPublished && !expired && (
+      {notPublished && (
         <NotPublishedModal
           guestName={notPublished.name}
           phone={notPublished.phone}
@@ -815,7 +712,6 @@ function GuestPageInner() {
           slug={slug}
           onPublished={handlePublished}
           onNotPublished={handleNotPublished}
-          onExpired={handleExpired}
         />
       )}
       {page === 'camera' && (

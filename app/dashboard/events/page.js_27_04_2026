@@ -1,0 +1,409 @@
+'use client'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+const eventColors = [
+  'linear-gradient(135deg,#9b7fe8,#c084fc)',
+  'linear-gradient(135deg,#f472b6,#ec4899)',
+  'linear-gradient(135deg,#60a5fa,#3b82f6)',
+  'linear-gradient(135deg,#34d399,#10b981)',
+  'linear-gradient(135deg,#fbbf24,#f59e0b)',
+  'linear-gradient(135deg,#a78bfa,#8b5cf6)',
+]
+
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap');
+
+  .er {
+    --serif:      'DM Serif Display', Georgia, serif;
+    --mono:       'DM Mono', monospace;
+    --sans:       'DM Sans', sans-serif;
+    --bg:         #faf9f7;
+    --bg-soft:    #f2f0ec;
+    --bg-sunk:    #e8e4dd;
+    --ink:        #1a1714;
+    --ink-soft:   #4a453f;
+    --ink-mute:   #8c8680;
+    --line:       #e0dbd3;
+    --line-soft:  #ede9e2;
+    --accent:     #2563eb;
+    --accent-bg:  #eff6ff;
+    --danger:     #dc2626;
+    --danger-bg:  #fef2f2;
+    --success:    #16a34a;
+    --success-bg: #f0fdf4;
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+  .er * { box-sizing: border-box; }
+
+  /* ── Underline tabs ── */
+  .er-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 32px;
+    overflow-x: auto;
+  }
+  .er-tab {
+    padding: 10px 18px;
+    font-family: var(--sans); font-size: 13.5px; font-weight: 500;
+    color: var(--ink-mute); background: transparent;
+    border: none; border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer; transition: all 120ms;
+    display: flex; align-items: center; gap: 7px;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .er-tab:hover { color: var(--ink-soft); }
+  .er-tab.active { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+  .er-tab .ct {
+    font-size: 11px; font-weight: 600; font-family: var(--mono);
+    padding: 1px 6px; border-radius: 20px;
+    background: var(--bg-sunk); color: var(--ink-mute);
+  }
+  .er-tab.active .ct { background: var(--ink); color: var(--bg); }
+
+  /* ── Card ── */
+  .ev-card {
+    border: 1px solid var(--line); border-radius: 12px;
+    background: var(--bg); overflow: hidden;
+    transition: box-shadow 180ms, transform 180ms;
+    text-decoration: none; color: inherit; display: block;
+  }
+  .ev-card:hover { box-shadow: 0 10px 32px rgba(0,0,0,0.09); transform: translateY(-2px); }
+
+  /* Tall cover */
+  .ev-cover { height: 280px; position: relative; overflow: hidden; }
+  .ev-cover img { width:100%; height:100%; object-fit:cover; display:block; }
+  .ev-cover-hatch {
+    width:100%; height:100%;
+    background-image: repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(255,255,255,0.18) 8px, rgba(255,255,255,0.18) 16px);
+  }
+
+  /* Status — plain text, top right */
+  .ev-status {
+    position: absolute; top: 14px; right: 14px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; font-family: var(--mono);
+  }
+
+  /* Template tag pill — bottom left */
+  .ev-tag {
+    position: absolute; bottom: 14px; left: 14px;
+    background: rgba(250,249,247,0.92); border: 1px solid rgba(0,0,0,0.1);
+    backdrop-filter: blur(6px);
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; font-family: var(--mono); color: var(--ink-soft);
+    padding: 3px 9px; border-radius: 4px;
+  }
+
+  /* Expired bar */
+  .ev-expired { position:absolute;bottom:0;left:0;right:0;background:rgba(220,38,38,0.82);color:#fff;font-size:10px;font-weight:700;text-align:center;padding:3px 0;letter-spacing:0.06em;text-transform:uppercase;font-family:var(--mono); }
+
+  /* Card body */
+  .ev-body { padding: 18px 20px 20px; border-top: 1px solid var(--line-soft); }
+  .ev-name { font-family:var(--serif);font-size:24px;font-weight:400;letter-spacing:-0.01em;margin:0 0 4px;color:var(--ink);line-height:1.2; }
+  .ev-meta { font-size:13px;color:var(--ink-mute);margin-bottom:6px; }
+  .ev-dates { font-size:12px;color:var(--ink-mute);font-family:var(--mono);letter-spacing:0.02em; }
+
+  /* Delete btn — appears on wrapper hover */
+  .ev-wrap { position: relative; }
+  .ev-del {
+    position:absolute;top:12px;left:12px;width:26px;height:26px;border-radius:6px;
+    background:rgba(250,249,247,0.9);border:1px solid rgba(0,0,0,0.1);
+    color:var(--ink-mute);font-size:11px;font-weight:700;cursor:pointer;
+    display:grid;place-items:center;backdrop-filter:blur(4px);
+    transition:all 120ms;opacity:0;z-index:2;
+  }
+  .ev-wrap:hover .ev-del { opacity:1; }
+  .ev-del:hover { background:#fef2f2;color:#dc2626;border-color:rgba(220,38,38,0.2); }
+
+  /* Search */
+  .er-search {
+    display:flex;align-items:center;gap:8px;
+    border:1px solid var(--line);border-radius:8px;padding:8px 12px;
+    background:var(--bg);width:220px;transition:border-color 140ms;
+  }
+  .er-search:focus-within { border-color:var(--ink); }
+  .er-search input { border:none;outline:none;background:transparent;font-size:13px;color:var(--ink);font-family:var(--sans);width:100%; }
+  .er-search input::placeholder { color:var(--ink-mute); }
+
+  /* Buttons */
+  .er-btn { display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;font-family:var(--sans);font-size:13.5px;font-weight:600;cursor:pointer;transition:all 140ms;border:none;white-space:nowrap; }
+  .er-btn-primary { background:var(--ink);color:var(--bg); }
+  .er-btn-primary:hover { background:var(--ink-soft); }
+  .er-btn-outline { background:transparent;color:var(--ink-soft);border:1px solid var(--line); }
+  .er-btn-outline:hover { background:var(--bg-soft); }
+
+  /* Modal */
+  .er-overlay { position:fixed;inset:0;background:rgba(26,23,20,0.4);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:50; }
+  .er-modal { background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:32px;max-width:380px;width:90%;box-shadow:0 24px 64px rgba(0,0,0,0.18); }
+
+  /* Empty */
+  .er-empty { grid-column:1/-1;border:1px dashed var(--line);border-radius:16px;padding:64px 40px;text-align:center; }
+
+  /* Publish toggle */
+  .ev-toggle {
+    width:100%;padding:8px 0;border-radius:7px;
+    font-size:12px;font-weight:600;cursor:pointer;
+    font-family:var(--sans);transition:all 160ms;text-align:center;
+  }
+`
+
+function fmtRange(start, end) {
+  if (!start) return null
+  const fmt = s => new Date(s).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+  const fmtS = s => new Date(s).toLocaleDateString('en-US', { month:'short', day:'numeric' })
+  if (!end || start === end) return fmt(start)
+  return `${fmtS(start)} — ${fmt(end)}`
+}
+
+function metaLine(ev) {
+  return [ev.event_type, ev.location].filter(Boolean).join(' · ') || null
+}
+
+function templateLabel(id) {
+  if (!id) return null
+  return id.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+function getStatus(ev) {
+  if (ev.expires_at && new Date(ev.expires_at) < new Date()) return 'archived'
+  if (ev.is_published) return 'live'
+  if (ev.start_date && new Date(ev.start_date) > new Date()) return 'scheduled'
+  return 'draft'
+}
+
+export default function EventsPage() {
+  const router = useRouter()
+  const [events, setEvents]   = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter]   = useState('all')
+  const [search, setSearch]   = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [deletingId, setDeletingId]       = useState(null)
+  const [togglingId, setTogglingId]       = useState(null)
+
+  useEffect(() => { loadEvents() }, [])
+
+  async function loadEvents() {
+    const token = localStorage.getItem('token')
+    const res   = await fetch(`${API_URL}/events/`, { headers: { Authorization: `Bearer ${token}` } })
+    const data  = await res.json()
+    if (Array.isArray(data)) setEvents(data)
+    setLoading(false)
+  }
+
+  async function togglePublish(ev, e) {
+    e.preventDefault(); e.stopPropagation()
+    setTogglingId(ev.id)
+    const token = localStorage.getItem('token')
+    try {
+      const res = await fetch(`${API_URL}/events/${ev.id}/publish`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ is_published: !ev.is_published }),
+      })
+      if (res.ok) setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, is_published: !ev.is_published } : e))
+    } catch (err) { console.error(err) }
+    setTogglingId(null)
+  }
+
+  async function deleteEvent(id) {
+    setDeletingId(id)
+    const token = localStorage.getItem('token')
+    const res   = await fetch(`${API_URL}/events/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) setEvents(p => p.filter(e => e.id !== id))
+    setDeletingId(null)
+    setConfirmDelete(null)
+  }
+
+  const counts = {
+    all:       events.length,
+    live:      events.filter(e => getStatus(e) === 'live').length,
+    scheduled: events.filter(e => getStatus(e) === 'scheduled').length,
+    drafts:    events.filter(e => getStatus(e) === 'draft').length,
+    archived:  events.filter(e => getStatus(e) === 'archived').length,
+    selling:   events.filter(e => e.photo_selling_enabled).length,
+  }
+
+  const tabs = [
+    ['all','All'], ['live','Live'], ['scheduled','Scheduled'],
+    ['drafts','Drafts'], ['archived','Archived'], ['selling','Photo sales'],
+  ]
+
+  const filtered = events.filter(ev => {
+    const st = getStatus(ev)
+    const matchTab =
+      filter === 'all'       ? true :
+      filter === 'live'      ? st === 'live' :
+      filter === 'scheduled' ? st === 'scheduled' :
+      filter === 'drafts'    ? st === 'draft' :
+      filter === 'archived'  ? st === 'archived' :
+      filter === 'selling'   ? ev.photo_selling_enabled : true
+    const q = search.toLowerCase()
+    const matchSearch = !q || ev.name?.toLowerCase().includes(q) || ev.slug?.toLowerCase().includes(q)
+    return matchTab && matchSearch
+  })
+
+  return (
+    <div className="er">
+      <style>{css}</style>
+
+      <div style={{ padding:'40px 44px 64px', maxWidth:1280, margin:'0 auto' }}>
+
+        {/* Header */}
+        <div style={{ marginBottom:32 }}>
+          <div style={{ fontFamily:'var(--mono)',fontSize:11,color:'var(--ink-mute)',textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:10 }}>
+            Workspace · Events
+          </div>
+          <div style={{ display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16,flexWrap:'wrap' }}>
+            <div>
+              <h1 style={{ fontFamily:'var(--serif)',fontSize:48,fontWeight:400,letterSpacing:'-0.02em',margin:'0 0 8px',lineHeight:1.05 }}>
+                Your <em style={{ fontStyle:'italic' }}>events</em>
+              </h1>
+              <p style={{ fontSize:14,color:'var(--ink-mute)',margin:0,maxWidth:480,lineHeight:1.55 }}>
+                {events.length} event{events.length!==1?'s':''} across all states.{events.length>0?' Manage covers, galleries, photo sales, and guest access.':''}
+              </p>
+            </div>
+            <div style={{ display:'flex',gap:10,alignItems:'center',flexShrink:0 }}>
+              <div className="er-search">
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ color:'var(--ink-mute)',flexShrink:0 }}>
+                  <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.4"/>
+                  <path d="M9 9l2.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                </svg>
+                <input placeholder="Search events" value={search} onChange={e=>setSearch(e.target.value)}/>
+              </div>
+              <button className="er-btn er-btn-primary" onClick={()=>router.push('/dashboard/create-event')}>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                New event
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Underline tabs */}
+        <div className="er-tabs">
+          {tabs.map(([k,l]) => (
+            <button key={k} className={`er-tab${filter===k?' active':''}`} onClick={()=>setFilter(k)}>
+              {l}<span className="ct">{counts[k]}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        {loading ? (
+          <div style={{ padding:'80px 0',textAlign:'center',color:'var(--ink-mute)',fontFamily:'var(--mono)',fontSize:12,letterSpacing:'0.08em' }}>Loading events…</div>
+        ) : filtered.length === 0 ? (
+          <div className="er-empty">
+            <div style={{ fontSize:36,marginBottom:14 }}>📷</div>
+            <div style={{ fontFamily:'var(--serif)',fontSize:26,fontWeight:400,marginBottom:8 }}>
+              {filter==='all'&&!search?'No events yet':`No ${filter} events${search?` matching "${search}"`:''}`}
+            </div>
+            <p style={{ color:'var(--ink-mute)',fontSize:14,maxWidth:320,margin:'0 auto 20px',lineHeight:1.6 }}>
+              {filter==='all'&&!search?'Create your first event and start sharing beautiful galleries.':''}
+            </p>
+            {filter==='all'&&!search&&(
+              <button className="er-btn er-btn-primary" onClick={()=>router.push('/dashboard/create-event')}>Create your first event</button>
+            )}
+          </div>
+        ) : (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:24 }}>
+            {filtered.map((ev,i) => {
+              const status   = getStatus(ev)
+              const hasCover = !!ev.cover_url
+              const tLabel   = templateLabel(ev.gallery_template)
+              const dateRange = fmtRange(ev.start_date || ev.starts_at, ev.end_date || ev.ends_at)
+              const meta     = metaLine(ev)
+              const isToggling = togglingId === ev.id
+
+              const statusLabel = { live:'● LIVE', scheduled:'SCHEDULED', draft:'○ DRAFT', archived:'EXPIRED' }[status]
+              const statusColor = { live:'#16a34a', scheduled:'rgba(250,249,247,0.9)', draft:'rgba(250,249,247,0.8)', archived:'#ef4444' }[status]
+
+              return (
+                <div key={ev.id} className="ev-wrap">
+                  <Link href={`/dashboard/events/${ev.id}`} className="ev-card">
+
+                    {/* Cover */}
+                    <div className="ev-cover" style={{ background: hasCover?'#1a1714':eventColors[i%6] }}>
+                      {hasCover
+                        ? <img src={ev.cover_url} alt={ev.name} onError={e=>{e.target.style.display='none'}}/>
+                        : <div className="ev-cover-hatch"/>
+                      }
+                      <div className="ev-status" style={{ color:statusColor }}>{statusLabel}</div>
+                      {tLabel && <div className="ev-tag">{tLabel}</div>}
+                      {status==='archived' && <div className="ev-expired">Event expired</div>}
+                    </div>
+
+                    {/* Body */}
+                    <div className="ev-body">
+                      <div style={{ display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8,marginBottom:14 }}>
+                        <div style={{ minWidth:0 }}>
+                          <h3 className="ev-name">{ev.name}</h3>
+                          {meta     && <div className="ev-meta">{meta}</div>}
+                          {dateRange && <div className="ev-dates">{dateRange}</div>}
+                        </div>
+                        <div style={{ display:'flex',flexDirection:'column',alignItems:'flex-end',gap:5,flexShrink:0 }}>
+                          {ev.photo_selling_enabled && <span style={{ fontSize:16,fontWeight:700,color:'var(--accent)',fontFamily:'var(--mono)' }}>$</span>}
+                          {ev.guest_upload_enabled && <span style={{ fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:20,background:'var(--success-bg)',color:'var(--success)',border:'1px solid rgba(22,163,74,0.2)',fontFamily:'var(--mono)',letterSpacing:'0.04em',textTransform:'uppercase' }}>Guest Upload</span>}
+                          {ev.public_gallery && <span style={{ fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:20,background:'var(--accent-bg)',color:'var(--accent)',border:'1px solid rgba(37,99,235,0.2)',fontFamily:'var(--mono)',letterSpacing:'0.04em',textTransform:'uppercase' }}>Public</span>}
+                        </div>
+                      </div>
+
+                      {/* Publish toggle */}
+                      <button
+                        className="ev-toggle"
+                        onClick={e=>togglePublish(ev,e)}
+                        disabled={isToggling}
+                        style={{
+                          border: `1px solid ${ev.is_published?'rgba(22,163,74,0.2)':'var(--line)'}`,
+                          background: ev.is_published?'var(--success-bg)':'var(--bg-soft)',
+                          color: ev.is_published?'var(--success)':'var(--ink-mute)',
+                          opacity: isToggling?0.6:1,
+                          cursor: isToggling?'wait':'pointer',
+                        }}
+                      >
+                        {isToggling?'Updating…':ev.is_published?'● Published · click to unpublish':'○ Draft · click to publish'}
+                      </button>
+                    </div>
+                  </Link>
+
+                  {/* Delete */}
+                  <button className="ev-del" onClick={e=>{e.preventDefault();setConfirmDelete(ev.id)}} title="Delete">✕</button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Delete modal */}
+      {confirmDelete && (
+        <div className="er-overlay" onClick={()=>setConfirmDelete(null)}>
+          <div className="er-modal" onClick={e=>e.stopPropagation()}>
+            <div style={{ fontFamily:'var(--serif)',fontSize:26,fontWeight:400,marginBottom:6 }}>Delete event?</div>
+            <p style={{ fontSize:13.5,color:'var(--ink-mute)',margin:'0 0 24px',lineHeight:1.65 }}>
+              All photos and face embeddings will be permanently removed. This cannot be undone.
+            </p>
+            <div style={{ display:'flex',gap:10 }}>
+              <button className="er-btn er-btn-outline" style={{ flex:1,justifyContent:'center' }} onClick={()=>setConfirmDelete(null)}>Cancel</button>
+              <button
+                className="er-btn"
+                style={{ flex:1,justifyContent:'center',background:'var(--danger)',color:'#fff',opacity:deletingId===confirmDelete?0.6:1,cursor:deletingId===confirmDelete?'wait':'pointer' }}
+                onClick={()=>deleteEvent(confirmDelete)}
+                disabled={deletingId===confirmDelete}
+              >
+                {deletingId===confirmDelete?'Deleting…':'Delete event'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

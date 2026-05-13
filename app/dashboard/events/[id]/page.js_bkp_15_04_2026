@@ -1,0 +1,1386 @@
+'use client'
+import { useState, useEffect, useRef } from 'react'
+import { useParams } from 'next/navigation'
+import Link from 'next/link'
+import {
+  getEvents, getPhotos, setCoverPhoto,
+  getCollections, createCollection, deleteCollection,
+  addPhotosToCollection, removePhotoFromCollection, getCollectionPhotos,
+  deletePhoto,
+} from '@/lib/api'
+
+const CONCURRENT_UPLOADS = 3
+const MAX_RETRIES        = 3
+const COMPRESS_MAX_PX    = 1920
+const UI_THROTTLE_MS     = 400
+const API_URL            = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+const QUALITY_PRESETS = [
+  { label: 'High',   value: 0.92, desc: 'Best quality, larger file'  },
+  { label: 'Medium', value: 0.80, desc: 'Balanced — recommended'     },
+  { label: 'Low',    value: 0.65, desc: 'Smallest file, fast upload' },
+]
+
+// ─── tiny helpers ─────────────────────────────────────────────────────────────
+function fmtDate(s) {
+  if (!s) return null
+  try { return new Date(s).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) }
+  catch { return null }
+}
+function fmtSize(b) {
+  if (!b) return null
+  if (b < 1024)    return `${b} B`
+  if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`
+  return `${(b / 1048576).toFixed(1)} MB`
+}
+function getToken() { return typeof window !== 'undefined' ? localStorage.getItem('token') : null }
+function authH()   { return { Authorization: `Bearer ${getToken()}` } }
+function jsonH()   { return { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' } }
+
+// ─── glass style helper ───────────────────────────────────────────────────────
+const glass = (extra = {}) => ({
+  background: 'rgba(255,255,255,0.28)',
+  backdropFilter: 'blur(20px)',
+  WebkitBackdropFilter: 'blur(20px)',
+  border: '1px solid rgba(255,255,255,0.55)',
+  borderRadius: 20,
+  boxShadow: '0 4px 24px rgba(100,80,180,0.08), inset 0 1px 0 rgba(255,255,255,0.5)',
+  ...extra,
+})
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// QRCode
+// ═══════════════════════════════════════════════════════════════════════════════
+function QRCode({ url, size = 160 }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!url || !ref.current) return
+    import('qrcode').then(lib =>
+      lib.default.toCanvas(ref.current, url, {
+        width: size, margin: 2,
+        color: { dark: '#2d1b69', light: '#ffffff' },
+        errorCorrectionLevel: 'M',
+      })
+    )
+  }, [url, size])
+  return <canvas ref={ref} style={{ borderRadius: 12, display: 'block' }} width={size} height={size} />
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PhotoMenu  — the ⋮ dropdown on each card
+// ═══════════════════════════════════════════════════════════════════════════════
+function PhotoMenu({ photo, collections, colPhotoIds, onMakeCover, onDelete, onAddToCol, onRemoveFromCol }) {
+  const [open,    setOpen]    = useState(false)
+  const [colOpen, setColOpen] = useState(false)
+  const ref                   = useRef(null)
+
+  // close on outside click
+  useEffect(() => {
+    if (!open) { setColOpen(false); return }
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const btnBase = {
+    width: '100%', display: 'flex', alignItems: 'center', gap: 9,
+    padding: '9px 14px', border: 'none', background: 'transparent',
+    cursor: 'pointer', textAlign: 'left',
+    borderBottom: '1px solid rgba(155,127,232,0.07)',
+    transition: 'background .12s',
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      {/* trigger */}
+      <button
+        onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
+        style={{
+          width: 28, height: 28, borderRadius: 7, border: 'none',
+          background: open ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.18)',
+          backdropFilter: 'blur(6px)', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontSize: 16, lineHeight: 1,
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.35)'}
+        onMouseLeave={e => e.currentTarget.style.background = open ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.18)'}
+      >⋮</button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 34, right: 0, zIndex: 9999,
+          background: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(20px)',
+          borderRadius: 14, border: '1px solid rgba(155,127,232,0.18)',
+          boxShadow: '0 12px 40px rgba(45,27,105,0.2)', minWidth: 200, overflow: 'visible',
+        }}>
+
+          {/* Make Cover */}
+          <button style={btnBase}
+            onClick={() => { onMakeCover(photo); setOpen(false) }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(155,127,232,0.07)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <span style={{ fontSize: 15 }}>🖼</span>
+            <span style={{ fontSize: 13, fontWeight: 500, color: '#2d1b69', flex: 1 }}>Make Cover</span>
+          </button>
+
+          {/* Add to Collection → submenu */}
+          <div
+            style={{ position: 'relative' }}
+            onMouseEnter={() => setColOpen(true)}
+            onMouseLeave={() => setColOpen(false)}
+          >
+            <button style={btnBase}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(155,127,232,0.07)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <span style={{ fontSize: 15 }}>➕</span>
+              <span style={{ fontSize: 13, fontWeight: 500, color: '#2d1b69', flex: 1 }}>Add to Collection</span>
+              <span style={{ fontSize: 12, color: '#9b89c4' }}>›</span>
+            </button>
+
+            {colOpen && (
+              <div style={{
+                position: 'absolute', top: 0, right: '100%', marginRight: 4,
+                background: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(20px)',
+                borderRadius: 12, border: '1px solid rgba(155,127,232,0.15)',
+                boxShadow: '0 8px 30px rgba(45,27,105,0.15)',
+                minWidth: 170, overflow: 'hidden',
+              }}>
+                {collections.length === 0
+                  ? <div style={{ padding: '10px 14px', fontSize: 12, color: '#9b89c4', fontStyle: 'italic' }}>No collections yet</div>
+                  : collections.map(col => {
+                      const inCol = colPhotoIds[col.id]?.has(photo.id)
+                      return (
+                        <button key={col.id}
+                          onClick={e => {
+                            e.stopPropagation()
+                            inCol ? onRemoveFromCol(photo, col) : onAddToCol(photo, col)
+                            setOpen(false)
+                          }}
+                          style={{ ...btnBase, borderBottom: '1px solid rgba(155,127,232,0.07)' }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(155,127,232,0.07)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <span style={{ fontSize: 12 }}>📁</span>
+                          <span style={{ fontSize: 13, fontWeight: inCol ? 700 : 500, color: inCol ? '#7c3aed' : '#2d1b69', flex: 1 }}>
+                            {col.name}
+                          </span>
+                          {inCol && <span style={{ fontSize: 11, color: '#7c3aed' }}>✓</span>}
+                        </button>
+                      )
+                    })
+                }
+              </div>
+            )}
+          </div>
+
+          {/* divider */}
+          <div style={{ height: 1, background: 'rgba(155,127,232,0.12)', margin: '2px 0' }} />
+
+          {/* Delete */}
+          <button style={btnBase}
+            onClick={() => { onDelete(photo); setOpen(false) }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.06)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <span style={{ fontSize: 15 }}>🗑</span>
+            <span style={{ fontSize: 13, fontWeight: 500, color: '#dc2626', flex: 1 }}>Delete</span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PhotoCard
+// ═══════════════════════════════════════════════════════════════════════════════
+function PhotoCard({ photo, index, isCover, selected,
+                     onOpen, onDownload, onToggleSelect,
+                     collections, colPhotoIds,
+                     onMakeCover, onDelete, onAddToCol, onRemoveFromCol }) {
+  const [hovered,  setHovered]  = useState(false)
+  const [imgError, setImgError] = useState(false)
+
+  const filename = photo.storage_key?.split('/').pop()?.split('_').slice(1).join('_')
+                || photo.storage_key?.split('/').pop() || 'photo.jpg'
+  const hue = (index * 47) % 360
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        borderRadius: 16, overflow: 'hidden',
+        background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)',
+        border: `1px solid ${isCover ? '#f59e0b' : selected ? '#9b7fe8' : hovered ? 'rgba(155,127,232,0.35)' : 'rgba(255,255,255,0.7)'}`,
+        boxShadow: isCover
+          ? '0 0 0 3px rgba(245,158,11,0.3)'
+          : selected
+          ? '0 0 0 3px rgba(155,127,232,0.35)'
+          : hovered
+          ? '0 12px 32px rgba(155,127,232,0.18)'
+          : '0 2px 12px rgba(100,80,180,0.06)',
+        transform: hovered ? 'translateY(-3px)' : 'none',
+        transition: 'all .22s cubic-bezier(.4,0,.2,1)',
+        cursor: 'pointer', position: 'relative',
+      }}
+    >
+      {/* Cover badge */}
+      {isCover && (
+        <div style={{
+          position: 'absolute', top: 8, right: 8, zIndex: 4,
+          background: 'linear-gradient(135deg,#f59e0b,#fbbf24)',
+          borderRadius: 20, padding: '3px 8px',
+          fontSize: 10, fontWeight: 700, color: '#fff',
+          boxShadow: '0 2px 8px rgba(245,158,11,0.4)',
+        }}>⭐ Cover</div>
+      )}
+
+      {/* Checkbox */}
+      <div
+        onClick={e => { e.stopPropagation(); onToggleSelect(photo.id) }}
+        style={{
+          position: 'absolute', top: 10, left: 10, zIndex: 4,
+          width: 22, height: 22, borderRadius: 6,
+          background: selected ? '#7c3aed' : 'rgba(255,255,255,0.9)',
+          border: `2px solid ${selected ? '#7c3aed' : 'rgba(155,127,232,0.4)'}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          opacity: hovered || selected ? 1 : 0,
+          transition: 'opacity .15s, background .15s',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+        }}
+      >
+        {selected && (
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <polyline points="2,6 5,9 10,3" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </div>
+
+      {/* Image area */}
+      <div
+        onClick={() => onOpen(photo)}
+        style={{ position: 'relative', aspectRatio: '4/3', overflow: 'hidden', background: `hsl(${hue},30%,92%)` }}
+      >
+        {!imgError && photo.thumb_url ? (
+          <img
+            src={photo.thumb_url} alt={filename} loading="lazy"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform .3s', transform: hovered ? 'scale(1.06)' : 'scale(1)' }}
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(155,127,232,0.4)" strokeWidth="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
+            </svg>
+            <span style={{ fontSize: 10, color: 'rgba(155,127,232,0.55)', fontWeight: 500 }}>No preview</span>
+          </div>
+        )}
+
+        {/* Hover action bar — View | Download | ⋮ */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          padding: '10px',
+          background: 'linear-gradient(to top, rgba(20,10,50,0.78) 0%, transparent 100%)',
+          display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center',
+          opacity: hovered ? 1 : 0,
+          transform: hovered ? 'translateY(0)' : 'translateY(6px)',
+          transition: 'opacity .18s, transform .18s',
+        }}>
+          {/* View */}
+          <button
+            onClick={e => { e.stopPropagation(); onOpen(photo) }}
+            title="View"
+            style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(6px)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.38)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+              <circle cx="12" cy="12" r="3" /><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            </svg>
+          </button>
+
+          {/* Download */}
+          <button
+            onClick={e => { e.stopPropagation(); onDownload(photo) }}
+            title="Download"
+            style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(6px)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.38)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </button>
+
+          {/* 3-dot menu */}
+          <PhotoMenu
+            photo={photo}
+            collections={collections}
+            colPhotoIds={colPhotoIds}
+            onMakeCover={onMakeCover}
+            onDelete={onDelete}
+            onAddToCol={onAddToCol}
+            onRemoveFromCol={onRemoveFromCol}
+          />
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ padding: '10px 12px 12px' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#2d1b69', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 5 }} title={filename}>
+          {filename}
+        </div>
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          {fmtSize(photo.file_size_bytes) && (
+            <span style={{ fontSize: 10, color: '#9b89c4', background: 'rgba(155,127,232,0.08)', padding: '2px 7px', borderRadius: 6, fontWeight: 500 }}>
+              {fmtSize(photo.file_size_bytes)}
+            </span>
+          )}
+          {fmtDate(photo.created_at) && (
+            <span style={{ fontSize: 10, color: '#9b89c4', background: 'rgba(155,127,232,0.08)', padding: '2px 7px', borderRadius: 6, fontWeight: 500 }}>
+              {fmtDate(photo.created_at)}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PhotoViewer  (lightbox)
+// ═══════════════════════════════════════════════════════════════════════════════
+function PhotoViewer({ photos, startIndex, onClose, onDownload }) {
+  const [idx, setIdx] = useState(startIndex)
+
+  useEffect(() => {
+    const onKey = e => {
+      if (e.key === 'ArrowRight') setIdx(i => Math.min(i + 1, photos.length - 1))
+      if (e.key === 'ArrowLeft')  setIdx(i => Math.max(i - 1, 0))
+      if (e.key === 'Escape')     onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [photos.length, onClose])
+
+  const photo    = photos[idx]
+  const filename = photo.storage_key?.split('/').pop()?.split('_').slice(1).join('_') || 'photo.jpg'
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(10,5,30,0.93)', backdropFilter: 'blur(12px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      {/* Top bar */}
+      <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', background: 'linear-gradient(to bottom, rgba(10,5,30,0.8), transparent)' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.75)' }}>{idx + 1} / {photos.length} — {filename}</span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => onDownload(photo)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>⬇ Download</button>
+          <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+        </div>
+      </div>
+
+      {idx > 0 && (
+        <button onClick={e => { e.stopPropagation(); setIdx(i => i - 1) }} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>‹</button>
+      )}
+
+      <img
+        src={photo.url || photo.thumb_url} alt={filename}
+        onClick={e => e.stopPropagation()}
+        style={{ maxWidth: 'calc(100vw - 120px)', maxHeight: 'calc(100vh - 100px)', borderRadius: 12, objectFit: 'contain', boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }}
+      />
+
+      {idx < photos.length - 1 && (
+        <button onClick={e => { e.stopPropagation(); setIdx(i => i + 1) }} style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>›</button>
+      )}
+
+      {/* Dot strip (only when ≤ 20 photos) */}
+      {photos.length <= 20 && (
+        <div style={{ position: 'absolute', bottom: 16, display: 'flex', gap: 5 }}>
+          {photos.map((_, i) => (
+            <div key={i} onClick={e => { e.stopPropagation(); setIdx(i) }}
+              style={{ width: i === idx ? 18 : 6, height: 6, borderRadius: 3, background: i === idx ? '#9b7fe8' : 'rgba(255,255,255,0.3)', transition: 'all .2s', cursor: 'pointer' }} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UploadProgressBar
+// ═══════════════════════════════════════════════════════════════════════════════
+function UploadProgressBar({ progressRef, uploading, onClear }) {
+  const [snap, setSnap] = useState({ done: 0, total: 0, errors: 0, dupes: 0, avgSaving: 0 })
+  useEffect(() => {
+    const id = setInterval(() => setSnap({ ...progressRef.current }), UI_THROTTLE_MS)
+    return () => clearInterval(id)
+  }, [progressRef])
+
+  const pct = snap.total > 0 ? Math.round((snap.done / snap.total) * 100) : 0
+
+  return (
+    <div style={{ ...glass(), padding: '18px 22px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: uploading ? '#9b7fe8' : '#22c55e', ...(uploading ? { animation: 'pulse 1s ease-in-out infinite' } : {}) }} />
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#2d1b69' }}>
+            {uploading ? 'Uploading photos…' : 'Upload complete — loading gallery…'}
+          </span>
+        </div>
+        {!uploading && <button onClick={onClear} style={{ fontSize: 11, color: '#9b89c4', background: 'transparent', border: 'none', cursor: 'pointer' }}>Clear</button>}
+      </div>
+      <div style={{ height: 8, background: 'rgba(155,127,232,0.15)', borderRadius: 8, overflow: 'hidden', marginBottom: 10 }}>
+        <div style={{ height: 8, width: `${pct}%`, borderRadius: 8, background: uploading ? 'linear-gradient(90deg,#9b7fe8,#c084fc)' : 'linear-gradient(90deg,#22c55e,#4ade80)', transition: `width ${UI_THROTTLE_MS}ms ease-out` }} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 13, color: '#7c6aaa', fontWeight: 600 }}>
+          {snap.done} / {snap.total}
+          {snap.dupes  > 0 && <span style={{ color: '#d97706' }}> · {snap.dupes} skipped</span>}
+          {snap.errors > 0 && <span style={{ color: '#ef4444' }}> · {snap.errors} failed</span>}
+        </span>
+        <span style={{ fontSize: 14, fontWeight: 800, color: uploading ? '#7c3aed' : '#15803d' }}>{pct}%</span>
+      </div>
+      {snap.avgSaving > 0 && (
+        <div style={{ marginTop: 8, fontSize: 11, color: '#15803d', fontWeight: 600 }}>↓ {snap.avgSaving}% avg size saved by compression</div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CompressionModal
+// Props:
+//   collections        – current event collections (for collection picker)
+//   defaultCollectionId – pre-selected collection (e.g. activeSection if it's a col)
+// onConfirm receives: { compress, quality, collectionId, newCollectionName }
+// ═══════════════════════════════════════════════════════════════════════════════
+function CompressionModal({ files, userPlan, collections = [], defaultCollectionId = null, onConfirm, onCancel }) {
+  const isPaid       = userPlan !== 'starter'
+  const [compress,   setCompress]   = useState(true)
+  const [qualityIdx, setQualityIdx] = useState(1)
+
+  // Collection assignment during upload
+  // 'none' | 'existing:<id>' | 'new'
+  const [colMode,   setColMode]   = useState(defaultCollectionId ? `existing:${defaultCollectionId}` : 'none')
+  const [newColName, setNewColName] = useState('')
+
+  const totalSize = files.reduce((s, f) => s + f.size, 0)
+  const ratio     = compress ? [0.35, 0.20, 0.12][qualityIdx] : 1
+  const estSize   = totalSize * ratio
+  const selectedQ = QUALITY_PRESETS[qualityIdx]
+
+  function buildCollectionIntent() {
+    if (colMode === 'none') return { collectionId: null, newCollectionName: null }
+    if (colMode === 'new')  return { collectionId: null, newCollectionName: newColName.trim() || null }
+    const id = colMode.replace('existing:', '')
+    return { collectionId: id, newCollectionName: null }
+  }
+
+  const canSubmit = colMode !== 'new' || newColName.trim().length > 0
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(20,10,50,0.55)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ width: '100%', maxWidth: 480, background: 'rgba(255,255,255,0.98)', borderRadius: 24, overflow: 'hidden', boxShadow: '0 32px 80px rgba(45,27,105,0.22)' }}>
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#2d1b69,#4b0082)', padding: '20px 24px' }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 4 }}>Ready to upload {files.length} photo{files.length > 1 ? 's' : ''}</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>Total: {fmtSize(totalSize)}</div>
+        </div>
+
+        <div style={{ padding: '20px 24px 24px' }}>
+
+          {/* ── Collection picker ── */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#5b4a8a', marginBottom: 10, letterSpacing: '.05em', textTransform: 'uppercase' }}>Add to Collection</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+
+              {/* None option */}
+              <ColOption
+                selected={colMode === 'none'}
+                onClick={() => setColMode('none')}
+                icon="📷"
+                label="No collection"
+                sub="Photos appear under All"
+              />
+
+              {/* Existing collections */}
+              {collections.map(col => (
+                <ColOption key={col.id}
+                  selected={colMode === `existing:${col.id}`}
+                  onClick={() => setColMode(`existing:${col.id}`)}
+                  icon="📁"
+                  label={col.name}
+                  sub={`${col.photo_count || 0} photos`}
+                />
+              ))}
+
+              {/* Create new */}
+              <ColOption
+                selected={colMode === 'new'}
+                onClick={() => setColMode('new')}
+                icon="＋"
+                label="Create new collection"
+                sub="Name it below"
+              />
+              {colMode === 'new' && (
+                <input
+                  autoFocus
+                  value={newColName}
+                  onChange={e => setNewColName(e.target.value)}
+                  placeholder="e.g. Reception, Mehendi, Baraat…"
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1.5px solid rgba(155,127,232,0.35)', fontSize: 13, color: '#2d1b69', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                  onFocus={e => e.target.style.border = '1.5px solid #9b7fe8'}
+                  onBlur={e => e.target.style.border  = '1.5px solid rgba(155,127,232,0.35)'}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* ── Compress toggle ── */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: 14, background: compress ? 'rgba(155,127,232,0.07)' : 'rgba(0,0,0,0.03)', border: `1.5px solid ${compress ? 'rgba(155,127,232,0.3)' : 'rgba(0,0,0,0.08)'}`, marginBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#2d1b69', marginBottom: 2 }}>Compress images</div>
+              <div style={{ fontSize: 11, color: '#9b89c4' }}>{isPaid ? 'Paid plan — you can upload originals' : 'Free plan — compression required'}</div>
+            </div>
+            <div onClick={() => isPaid && setCompress(v => !v)} style={{ width: 44, height: 24, borderRadius: 12, background: compress ? '#7c3aed' : '#d1d5db', position: 'relative', cursor: isPaid ? 'pointer' : 'not-allowed', opacity: isPaid ? 1 : 0.6, flexShrink: 0 }}>
+              <div style={{ position: 'absolute', top: 3, left: compress ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+            </div>
+          </div>
+
+          {/* ── Quality picker ── */}
+          {compress && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#5b4a8a', marginBottom: 10, letterSpacing: '.05em', textTransform: 'uppercase' }}>Compression Quality</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                {QUALITY_PRESETS.map((p, i) => (
+                  <button key={p.label} onClick={() => setQualityIdx(i)} style={{ padding: '10px 8px', borderRadius: 12, border: 'none', cursor: 'pointer', background: qualityIdx === i ? 'linear-gradient(135deg,#9b7fe8,#c084fc)' : 'rgba(155,127,232,0.06)', outline: qualityIdx === i ? '2px solid #9b7fe8' : '2px solid transparent', outlineOffset: 2, transition: 'all .15s' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: qualityIdx === i ? '#fff' : '#2d1b69', marginBottom: 3 }}>{p.label}</div>
+                    <div style={{ fontSize: 10, color: qualityIdx === i ? 'rgba(255,255,255,0.8)' : '#9b89c4', lineHeight: 1.4 }}>{p.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Size estimate ── */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 10, background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)', marginBottom: 20 }}>
+            <span style={{ fontSize: 12, color: '#5b4a8a', fontWeight: 500 }}>Estimated upload size</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#15803d' }}>
+              {compress ? `~${fmtSize(estSize)} (↓ ~${Math.round((1 - ratio) * 100)}%)` : fmtSize(totalSize)}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={onCancel} style={{ flex: 1, padding: '12px', borderRadius: 12, border: '1.5px solid rgba(155,127,232,0.2)', background: 'transparent', fontSize: 13, fontWeight: 600, color: '#7c6aaa', cursor: 'pointer' }}>Cancel</button>
+            <button
+              disabled={!canSubmit}
+              onClick={() => onConfirm({ compress, quality: compress ? selectedQ.value : null, ...buildCollectionIntent() })}
+              style={{ flex: 2, padding: '12px', borderRadius: 12, border: 'none', background: canSubmit ? 'linear-gradient(135deg,#2d1b69,#4b0082)' : 'rgba(155,127,232,0.15)', fontSize: 13, fontWeight: 700, color: canSubmit ? '#fff' : '#9b89c4', cursor: canSubmit ? 'pointer' : 'not-allowed' }}>
+              Start Upload →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Tiny helper sub-component for collection option rows
+function ColOption({ selected, onClick, icon, label, sub }) {
+  return (
+    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 11, border: `1.5px solid ${selected ? '#9b7fe8' : 'rgba(155,127,232,0.15)'}`, background: selected ? 'rgba(155,127,232,0.08)' : 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'all .15s' }}>
+      <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: selected ? 700 : 500, color: selected ? '#7c3aed' : '#2d1b69' }}>{label}</div>
+        <div style={{ fontSize: 11, color: '#9b89c4' }}>{sub}</div>
+      </div>
+      <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${selected ? '#7c3aed' : 'rgba(155,127,232,0.3)'}`, background: selected ? '#7c3aed' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {selected && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+      </div>
+    </button>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DeleteConfirmModal
+// ═══════════════════════════════════════════════════════════════════════════════
+function DeleteConfirmModal({ photo, onConfirm, onCancel }) {
+  const filename = photo?.storage_key?.split('/').pop()?.split('_').slice(1).join('_') || 'this photo'
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1500, background: 'rgba(20,10,50,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: '28px', maxWidth: 380, width: '100%', boxShadow: '0 24px 60px rgba(45,27,105,0.2)' }}>
+        <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, fontSize: 22 }}>🗑</div>
+        <div style={{ fontSize: 17, fontWeight: 800, color: '#1a0a3d', marginBottom: 8 }}>Delete photo?</div>
+        <div style={{ fontSize: 13, color: '#7c6aaa', lineHeight: 1.7, marginBottom: 24 }}>
+          <strong style={{ color: '#2d1b69' }}>{filename}</strong> will be permanently removed from R2 storage and all collections.
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: '11px', borderRadius: 12, border: '1.5px solid rgba(155,127,232,0.2)', background: 'transparent', fontSize: 13, fontWeight: 600, color: '#7c6aaa', cursor: 'pointer' }}>Cancel</button>
+          <button onClick={onConfirm} style={{ flex: 1, padding: '11px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#dc2626,#ef4444)', fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>Delete</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AddCollectionModal
+// ═══════════════════════════════════════════════════════════════════════════════
+function AddCollectionModal({ onConfirm, onCancel }) {
+  const [name, setName] = useState('')
+  const ref = useRef(null)
+  useEffect(() => { setTimeout(() => ref.current?.focus(), 50) }, [])
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1500, background: 'rgba(20,10,50,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: '28px', maxWidth: 360, width: '100%', boxShadow: '0 24px 60px rgba(45,27,105,0.2)' }}>
+        <div style={{ fontSize: 17, fontWeight: 800, color: '#1a0a3d', marginBottom: 6 }}>New Collection</div>
+        <div style={{ fontSize: 12, color: '#9b89c4', marginBottom: 18 }}>Group photos by ceremony or moment</div>
+        <input
+          ref={ref} value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && name.trim() && onConfirm(name.trim())}
+          placeholder="e.g. Reception, Mehendi, Baraat…"
+          style={{ width: '100%', padding: '11px 14px', borderRadius: 12, border: '1.5px solid rgba(155,127,232,0.3)', fontSize: 14, color: '#2d1b69', outline: 'none', marginBottom: 20, boxSizing: 'border-box', fontFamily: 'inherit' }}
+          onFocus={e => e.target.style.border = '1.5px solid #9b7fe8'}
+          onBlur={e => e.target.style.border  = '1.5px solid rgba(155,127,232,0.3)'}
+        />
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: '11px', borderRadius: 12, border: '1.5px solid rgba(155,127,232,0.2)', background: 'transparent', fontSize: 13, fontWeight: 600, color: '#7c6aaa', cursor: 'pointer' }}>Cancel</button>
+          <button onClick={() => name.trim() && onConfirm(name.trim())} disabled={!name.trim()} style={{ flex: 1, padding: '11px', borderRadius: 12, border: 'none', background: name.trim() ? 'linear-gradient(135deg,#2d1b69,#4b0082)' : 'rgba(155,127,232,0.12)', fontSize: 13, fontWeight: 700, color: name.trim() ? '#fff' : '#9b89c4', cursor: name.trim() ? 'pointer' : 'not-allowed' }}>
+            Create
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN PAGE
+// ═══════════════════════════════════════════════════════════════════════════════
+export default function EventDetail() {
+  const { id }   = useParams()
+  const fileRef  = useRef(null)
+  const userPlan = 'paid' // TODO: replace with real auth context
+
+  // ── core data ──────────────────────────────────────────────────────────────
+  const [event,       setEvent]       = useState(null)
+  const [photos,      setPhotos]      = useState([])
+  const [collections, setCollections] = useState([])
+  // colPhotoIds: { [collectionId]: Set<photoId> }  — drives collection filter + submenu ticks
+  const [colPhotoIds, setColPhotoIds] = useState({})
+  const [loading,     setLoading]     = useState(true)
+
+  // ── upload state ───────────────────────────────────────────────────────────
+  const [uploading,    setUploading]    = useState(false)
+  const [showProgress, setShowProgress] = useState(false)
+  const [pendingFiles, setPendingFiles] = useState(null)
+  const [showModal,    setShowModal]    = useState(false)
+  const progressRef = useRef({ done: 0, total: 0, errors: 0, dupes: 0, savingSum: 0, savingCount: 0, avgSaving: 0 })
+
+  // ── UI state ───────────────────────────────────────────────────────────────
+  const [activeSection,    setActiveSection]    = useState('all') // 'all' | 'processing' | 'failed' | collectionId
+  const [searchQuery,      setSearchQuery]      = useState('')
+  const [viewMode,         setViewMode]         = useState('grid')
+  const [visibleCount,     setVisibleCount]     = useState(30)
+  const [copied,           setCopied]           = useState(false)
+  const [selectedIds,      setSelectedIds]      = useState(new Set())
+  const [viewerIndex,      setViewerIndex]      = useState(null)
+  const [deleteTarget,     setDeleteTarget]     = useState(null)
+  const [showAddCol,       setShowAddCol]       = useState(false)
+
+  // ── cover ──────────────────────────────────────────────────────────────────
+  const [coverPhotoId, setCoverPhotoId] = useState(null)
+  const [coverUrl,     setCoverUrl]     = useState(null)
+  const [coverSaving,  setCoverSaving]  = useState(false)
+
+  // ── effects ────────────────────────────────────────────────────────────────
+  useEffect(() => { if (id) loadAll() }, [id])
+  useEffect(() => { setVisibleCount(30) }, [activeSection, searchQuery])
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DATA LOADERS
+  // ─────────────────────────────────────────────────────────────────────────
+  async function loadAll() {
+    await Promise.all([loadEvent(), loadPhotos(), loadCollections()])
+  }
+
+  async function loadEvent() {
+    try {
+      const evs = await getEvents()
+      if (Array.isArray(evs)) {
+        const ev = evs.find(e => e.id === id)
+        if (ev) {
+          setEvent(ev)
+          setCoverPhotoId(ev.cover_photo_id || null)
+          setCoverUrl(ev.cover_url || null)
+        }
+      }
+    } catch (e) { console.error('loadEvent', e) }
+  }
+
+  async function loadPhotos() {
+    try {
+      const data = await getPhotos(id)
+      if (Array.isArray(data)) setPhotos(data)
+    } catch (e) { console.error('loadPhotos', e) }
+    setLoading(false)
+  }
+
+  async function loadCollections() {
+    try {
+      const data = await getCollections(id)
+      if (!Array.isArray(data)) return
+      setCollections(data)
+      // Load photo IDs for every collection in parallel
+      const map = {}
+      await Promise.all(data.map(async col => {
+        try {
+          const r = await getCollectionPhotos(id, col.id)
+          map[col.id] = new Set(r.photo_ids || [])
+        } catch { map[col.id] = new Set() }
+      }))
+      setColPhotoIds(map)
+    } catch (e) { console.error('loadCollections', e) }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // COVER
+  // ─────────────────────────────────────────────────────────────────────────
+  async function handleMakeCover(photo) {
+    setCoverSaving(true)
+    try {
+      const data = await setCoverPhoto(id, photo.id)
+      if (data.cover_photo_id) {
+        setCoverPhotoId(data.cover_photo_id)
+        setCoverUrl(data.cover_url)
+      }
+    } catch (e) { console.error('makeCover', e) }
+    setCoverSaving(false)
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DELETE PHOTO
+  // ─────────────────────────────────────────────────────────────────────────
+  async function handleDeleteConfirm() {
+    if (!deleteTarget) return
+    try {
+      await deletePhoto(id, deleteTarget.id)
+      // optimistic UI
+      setPhotos(prev => prev.filter(p => p.id !== deleteTarget.id))
+      if (deleteTarget.id === coverPhotoId) { setCoverPhotoId(null); setCoverUrl(null) }
+      setColPhotoIds(prev => {
+        const next = { ...prev }
+        Object.keys(next).forEach(cid => {
+          next[cid] = new Set([...next[cid]].filter(pid => pid !== deleteTarget.id))
+        })
+        return next
+      })
+      setSelectedIds(prev => { const n = new Set(prev); n.delete(deleteTarget.id); return n })
+    } catch (e) { console.error('deletePhoto', e) }
+    setDeleteTarget(null)
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // COLLECTIONS
+  // ─────────────────────────────────────────────────────────────────────────
+  async function handleCreateCollection(name) {
+    setShowAddCol(false)
+    try {
+      const col = await createCollection(id, name)
+      if (col.id) {
+        setCollections(prev => [...prev, col])
+        setColPhotoIds(prev => ({ ...prev, [col.id]: new Set() }))
+      }
+    } catch (e) { console.error('createCollection', e) }
+  }
+
+  async function handleDeleteCollection(col) {
+    try {
+      await deleteCollection(id, col.id)
+      setCollections(prev => prev.filter(c => c.id !== col.id))
+      setColPhotoIds(prev => { const n = { ...prev }; delete n[col.id]; return n })
+      if (activeSection === col.id) setActiveSection('all')
+    } catch (e) { console.error('deleteCollection', e) }
+  }
+
+  async function handleAddToCol(photo, col) {
+    try {
+      await addPhotosToCollection(id, col.id, [photo.id])
+      setColPhotoIds(prev => ({ ...prev, [col.id]: new Set([...(prev[col.id] || []), photo.id]) }))
+      setCollections(prev => prev.map(c => c.id === col.id ? { ...c, photo_count: (c.photo_count || 0) + 1 } : c))
+    } catch (e) { console.error('addToCol', e) }
+  }
+
+  async function handleRemoveFromCol(photo, col) {
+    try {
+      await removePhotoFromCollection(id, col.id, photo.id)
+      setColPhotoIds(prev => {
+        const n = { ...prev }
+        n[col.id] = new Set([...n[col.id]].filter(pid => pid !== photo.id))
+        return n
+      })
+      setCollections(prev => prev.map(c => c.id === col.id ? { ...c, photo_count: Math.max(0, (c.photo_count || 1) - 1) } : c))
+    } catch (e) { console.error('removeFromCol', e) }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // UPLOAD
+  // ─────────────────────────────────────────────────────────────────────────
+  async function compressImage(file, quality) {
+    return new Promise(resolve => {
+      if (/\.(heic|heif)$/i.test(file.name)) { resolve(new Blob([file], { type: file.type })); return }
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        let w = img.naturalWidth, h = img.naturalHeight
+        const m = Math.max(w, h)
+        if (m > COMPRESS_MAX_PX) { const s = COMPRESS_MAX_PX / m; w = Math.round(w * s); h = Math.round(h * s) }
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { resolve(new Blob([file], { type: 'image/jpeg' })); return }
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h)
+        ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'
+        ctx.drawImage(img, 0, 0, w, h)
+        canvas.toBlob(blob => resolve(blob || new Blob([file], { type: 'image/jpeg' })), 'image/jpeg', quality)
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(new Blob([file], { type: 'image/jpeg' })) }
+      img.src = url
+    })
+  }
+
+  async function computeHash(blob) {
+    try {
+      const buf = await blob.arrayBuffer()
+      const h   = await crypto.subtle.digest('SHA-256', buf)
+      return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join('')
+    } catch { return `${blob.size}_${Date.now()}_${Math.random().toString(36).slice(2)}` }
+  }
+
+  // compressOpts = { compress, quality, collectionId, newCollectionName }
+  async function uploadSingleFile(file, compressOpts) {
+    let payload, savingPct
+    if (compressOpts.compress) {
+      const blob = await compressImage(file, compressOpts.quality)
+      savingPct  = Math.max(0, Math.round((1 - blob.size / file.size) * 100))
+      payload    = blob
+    } else {
+      payload = new Blob([file], { type: file.type }); savingPct = 0
+    }
+
+    const fileHash       = await computeHash(payload)
+    const contentType    = compressOpts.compress ? 'image/jpeg' : (file.type || 'image/jpeg')
+
+    // ── Presign — include collection intent so backend can validate ────────────
+    const presignRes = await fetch(`${API_URL}/photos/${id}/presign`, {
+      method: 'POST', headers: jsonH(),
+      body: JSON.stringify({
+        filename:             file.name.replace(/[^a-zA-Z0-9._-]/g, '_'),
+        file_hash:            fileHash,
+        file_size:            payload.size,
+        content_type:         contentType,
+        collection_id:        compressOpts.collectionId       || null,
+        new_collection_name:  compressOpts.newCollectionName  || null,
+      }),
+    })
+    if (presignRes.status === 402) { const e = await presignRes.json().catch(() => ({})); throw new Error(e.detail?.code || 'quota_exceeded') }
+    if (!presignRes.ok) throw new Error(`presign_${presignRes.status}`)
+    const pdata = await presignRes.json()
+    if (pdata.status === 'duplicate') return { status: 'duplicate' }
+
+    const { photo_id, upload_url } = pdata
+
+    // ── R2 PUT ────────────────────────────────────────────────────────────────
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('PUT', upload_url, true)
+      xhr.setRequestHeader('Content-Type', contentType)
+      xhr.onload    = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`r2_${xhr.status}`))
+      xhr.onerror   = () => reject(new Error('network_error'))
+      xhr.timeout   = 300000
+      xhr.ontimeout = () => reject(new Error('upload_timeout'))
+      xhr.send(payload)
+    })
+
+    // ── Confirm — pass collection intent so backend maps photo→collection ──────
+    const confirmRes = await fetch(`${API_URL}/photos/${id}/confirm/${photo_id}`, {
+      method: 'POST', headers: jsonH(),
+      body: JSON.stringify({
+        collection_id:       compressOpts.collectionId      || null,
+        new_collection_name: compressOpts.newCollectionName || null,
+      }),
+    })
+    if (!confirmRes.ok) throw new Error(`confirm_${confirmRes.status}`)
+    const confirmData = await confirmRes.json()
+
+    return {
+      status:       'done',
+      saving:       savingPct,
+      collection_id: confirmData.collection_id || null,  // resolved ID (even for new collections)
+    }
+  }
+
+  function handleFileSelect(e) {
+    const raw = Array.from(e.target.files || [])
+    if (fileRef.current) fileRef.current.value = ''
+    if (!raw.length) return
+    const seen = new Set()
+    const files = raw.filter(f => { const k = `${f.name}_${f.size}`; if (seen.has(k)) return false; seen.add(k); return true })
+    setPendingFiles(files); setShowModal(true)
+  }
+
+  function handleModalConfirm(compressOpts) {
+    const files = pendingFiles
+    setShowModal(false); setPendingFiles(null)
+    startUpload(files, compressOpts)
+  }
+
+  async function startUpload(files, compressOpts) {
+    progressRef.current = { done: 0, total: files.length, errors: 0, dupes: 0, savingSum: 0, savingCount: 0, avgSaving: 0 }
+    setShowProgress(true); setUploading(true)
+
+    let pollBusy = false
+    const poll = setInterval(async () => {
+      if (pollBusy) return; pollBusy = true; await loadPhotos(); pollBusy = false
+    }, 4000)
+
+    try {
+      for (let i = 0; i < files.length; i += CONCURRENT_UPLOADS) {
+        const batch = files.slice(i, i + CONCURRENT_UPLOADS)
+        await Promise.allSettled(batch.map(async file => {
+          let lastErr
+          for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+              const r = await uploadSingleFile(file, compressOpts)
+              if (r.status === 'duplicate') { progressRef.current.dupes++; progressRef.current.done++ }
+              else {
+                progressRef.current.done++
+                if (r.saving > 0) {
+                  progressRef.current.savingSum   += r.saving
+                  progressRef.current.savingCount += 1
+                  progressRef.current.avgSaving    = Math.round(progressRef.current.savingSum / progressRef.current.savingCount)
+                }
+              }
+              return
+            } catch (err) {
+              lastErr = err
+              if (err.message?.includes('quota')) { progressRef.current.errors++; progressRef.current.done++; return }
+              if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, 1500 * attempt))
+            }
+          }
+          progressRef.current.errors++; progressRef.current.done++
+          console.error(`Upload failed: ${file.name}`, lastErr?.message)
+        }))
+      }
+    } finally { clearInterval(poll) }
+
+    await loadPhotos()
+    await loadCollections()   // refresh sidebar counts + any new inline collections
+    setUploading(false)
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // MISC HANDLERS
+  // ─────────────────────────────────────────────────────────────────────────
+  function copyLink() {
+    navigator.clipboard.writeText(`${window.location.origin}/guest/${event?.slug}`)
+    setCopied(true); setTimeout(() => setCopied(false), 2000)
+  }
+
+  function downloadQR() {
+    import('qrcode').then(lib => {
+      const c = document.createElement('canvas')
+      const u = `${window.location.origin}/guest/${event?.slug}`
+      lib.default.toCanvas(c, u, { width: 512, margin: 3, color: { dark: '#2d1b69', light: '#fff' }, errorCorrectionLevel: 'H' }, () => {
+        const a = document.createElement('a')
+        a.href = c.toDataURL('image/png'); a.download = `${event?.slug || 'event'}-qr.png`
+        document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      })
+    })
+  }
+
+  function shareWhatsApp() {
+    const u = `${window.location.origin}/guest/${event?.slug}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(`Find your photos from ${event?.name}! 📸\n${u}`)}`, '_blank')
+  }
+
+  function handleOpen(photo) {
+    const idx = readyPhotos.findIndex(p => p.id === photo.id)
+    setViewerIndex(idx >= 0 ? idx : 0)
+  }
+
+  function handleDownload(photo) {
+    const url = photo.url || photo.thumb_url
+    const fn  = photo.storage_key?.split('/').pop()?.split('_').slice(1).join('_') || 'photo.jpg'
+    const a = document.createElement('a'); a.href = url; a.download = fn; a.target = '_blank'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+  }
+
+  function toggleSelect(photoId) {
+    setSelectedIds(prev => { const n = new Set(prev); n.has(photoId) ? n.delete(photoId) : n.add(photoId); return n })
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DERIVED VALUES
+  // ─────────────────────────────────────────────────────────────────────────
+  const readyPhotos = photos.filter(p => p.status === 'ready')
+  const processing  = photos.filter(p => p.status === 'pending' || p.status === 'processing').length
+  const failed      = photos.filter(p => p.status === 'failed').length
+  const guestUrl    = event && typeof window !== 'undefined' ? `${window.location.origin}/guest/${event.slug}` : ''
+
+  const isColSection = activeSection !== 'all' && activeSection !== 'processing' && activeSection !== 'failed'
+
+  const filteredPhotos = photos.filter(p => {
+    if (activeSection === 'all')        return p.status === 'ready'
+    if (activeSection === 'processing') return p.status === 'pending' || p.status === 'processing'
+    if (activeSection === 'failed')     return p.status === 'failed'
+    return p.status === 'ready' && colPhotoIds[activeSection]?.has(p.id)
+  }).filter(p => !searchQuery || p.storage_key?.toLowerCase().includes(searchQuery.toLowerCase()))
+
+  const visiblePhotos = filteredPhotos.slice(0, visibleCount)
+  const hasMore       = visibleCount < filteredPhotos.length
+
+  const sectionLabel = activeSection === 'all'        ? 'All Photos'
+                     : activeSection === 'processing'  ? 'In Queue'
+                     : activeSection === 'failed'      ? 'Failed'
+                     : collections.find(c => c.id === activeSection)?.name || ''
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#e8e4f8,#d4d0f5 15%,#e2d4f0 30%,#f5d6e8 50%,#fce4d6 65%,#e8d4f0 80%,#d8e0f8)', fontFamily: "'Inter',system-ui,sans-serif" }}>
+
+      {/* ambient blobs */}
+      {[
+        { w: 400, bg: '#c4b5fd', t: -80, l: -60  },
+        { w: 300, bg: '#fbcfe8', t: 100, r: -40  },
+        { w: 350, bg: '#bfdbfe', b: -60, l:  200 },
+      ].map((b, i) => (
+        <div key={i} style={{ position: 'fixed', width: b.w, height: b.w, background: b.bg, borderRadius: '50%', filter: 'blur(60px)', opacity: .25, pointerEvents: 'none', top: b.t, left: b.l, right: b.r, bottom: b.b, zIndex: 0 }} />
+      ))}
+
+      {/* ── modals ── */}
+      {showModal && pendingFiles && (
+        <CompressionModal
+          files={pendingFiles}
+          userPlan={userPlan}
+          collections={collections}
+          defaultCollectionId={isColSection ? activeSection : null}
+          onConfirm={handleModalConfirm}
+          onCancel={() => { setShowModal(false); setPendingFiles(null) }}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteConfirmModal photo={deleteTarget}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)} />
+      )}
+      {showAddCol && (
+        <AddCollectionModal
+          onConfirm={handleCreateCollection}
+          onCancel={() => setShowAddCol(false)} />
+      )}
+
+      {/* ── lightbox ── */}
+      {viewerIndex !== null && (
+        <PhotoViewer photos={readyPhotos} startIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)} onDownload={handleDownload} />
+      )}
+
+      {/* ── selection bar ── */}
+      {selectedIds.size > 0 && (
+        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 500, display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(45,27,105,0.95)', backdropFilter: 'blur(12px)', borderRadius: 16, padding: '10px 16px', boxShadow: '0 8px 32px rgba(45,27,105,0.35)', border: '1px solid rgba(155,127,232,0.3)' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#e9d5ff' }}>{selectedIds.size} selected</span>
+          <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.15)' }} />
+          <button onClick={() => readyPhotos.filter(p => selectedIds.has(p.id)).forEach(handleDownload)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '1px solid rgba(155,127,232,0.4)', background: 'rgba(155,127,232,0.2)', color: '#e9d5ff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            ⬇ Download all
+          </button>
+          <button onClick={() => setSelectedIds(new Set())} style={{ padding: '7px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Clear</button>
+        </div>
+      )}
+
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+
+        {/* ══════════ TOPBAR ══════════ */}
+        <div style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(155,127,232,0.12)', padding: '0 20px', flexShrink: 0 }}>
+          <div style={{ height: 58, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Link href="/dashboard/events" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9b89c4', textDecoration: 'none', fontSize: 13, fontWeight: 600, padding: '6px 10px', borderRadius: 10, background: 'rgba(155,127,232,0.08)', border: '1px solid rgba(155,127,232,0.15)' }}>← Events</Link>
+            <div style={{ width: 1, height: 20, background: 'rgba(155,127,232,0.2)' }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#2d1b69', letterSpacing: '-.02em' }}>{event?.name || 'Loading…'}</div>
+              <div style={{ fontSize: 11, color: '#9b89c4', marginTop: 1 }}>{event?.event_type || 'Event'} · /{event?.slug}</div>
+            </div>
+            <div style={{ padding: '4px 12px', borderRadius: 20, background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)', fontSize: 11, fontWeight: 700, color: '#7c3aed' }}>✦ {userPlan === 'starter' ? 'Free' : userPlan.charAt(0).toUpperCase() + userPlan.slice(1)}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 20, background: event?.is_published ? 'rgba(22,163,74,0.1)' : 'rgba(156,163,175,0.15)', border: `1px solid ${event?.is_published ? 'rgba(22,163,74,0.2)' : 'rgba(156,163,175,0.3)'}` }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: event?.is_published ? '#22c55e' : '#9ca3af' }} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: event?.is_published ? '#15803d' : '#6b7280' }}>{event?.is_published ? 'Published' : 'Unpublished'}</span>
+            </div>
+            <div style={{ padding: '6px 14px', borderRadius: 20, background: 'rgba(155,127,232,0.1)', border: '1px solid rgba(155,127,232,0.2)', fontSize: 12, fontWeight: 700, color: '#7c3aed' }}>{photos.length} Photos</div>
+            <button onClick={copyLink} style={{ padding: '8px 18px', borderRadius: 12, background: copied ? 'rgba(22,163,74,0.15)' : 'linear-gradient(135deg,#9b7fe8,#c084fc)', color: copied ? '#15803d' : '#fff', border: copied ? '1px solid rgba(22,163,74,0.3)' : 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .2s' }}>{copied ? '✓ Copied!' : '↗ Share'}</button>
+            <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ padding: '8px 18px', borderRadius: 12, background: '#2d1b69', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.7 : 1 }}>⬆ Upload</button>
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/jpg,image/webp,image/heic" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flex: 1 }}>
+
+          {/* ══════════ LEFT PANEL ══════════ */}
+          <div style={{ width: 244, flexShrink: 0, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {/* Cover card */}
+            <div style={{ ...glass(), overflow: 'hidden', borderRadius: 18 }}>
+              <div style={{ height: 122, position: 'relative', overflow: 'hidden' }}>
+                {coverUrl
+                  ? <img src={coverUrl} alt="Event cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg,#9b7fe8,#c084fc,#f472b6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>📸</div>
+                }
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(20,10,50,0.3), transparent)' }} />
+                <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 20, background: 'rgba(255,255,255,0.9)', color: '#2d1b69', fontWeight: 600 }}>
+                    {coverSaving ? '⏳ Saving…' : coverUrl ? '✎ Change via ⋮ menu' : 'Set cover via ⋮ menu'}
+                  </span>
+                </div>
+              </div>
+              <div style={{ padding: '14px 16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                  {[{ n: readyPhotos.length, l: 'Photos' }, { n: 0, l: 'Videos' }].map((s, i) => (
+                    <div key={i} style={{ textAlign: 'center', padding: '8px 0', background: 'rgba(255,255,255,0.4)', borderRadius: 10, border: '1px solid rgba(155,127,232,0.1)' }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: '#2d1b69' }}>{String(s.n).padStart(2, '0')}</div>
+                      <div style={{ fontSize: 10, color: '#9b89c4', fontWeight: 500 }}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setShowAddCol(true)} style={{ width: '100%', padding: '8px', borderRadius: 10, border: '1px solid rgba(155,127,232,0.25)', background: 'rgba(155,127,232,0.06)', fontSize: 12, color: '#7c3aed', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                  ＋ Add Collection
+                </button>
+              </div>
+            </div>
+
+            {/* Collections nav */}
+            <div style={{ ...glass(), padding: '14px 16px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#5b4a8a', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 10 }}>Collections</div>
+
+              {/* All Photos */}
+              {[{ id: 'all', label: 'All Photos', icon: '⊞', count: readyPhotos.length }].map(item => (
+                <NavItem key={item.id} {...item} active={activeSection === item.id} onClick={() => setActiveSection(item.id)} />
+              ))}
+
+              {/* User collections */}
+              {collections.map(col => (
+                <div key={col.id} style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 2 }}>
+                  <button onClick={() => setActiveSection(col.id)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 10, border: 'none', background: activeSection === col.id ? 'linear-gradient(135deg,rgba(155,127,232,0.15),rgba(192,132,252,0.1))' : 'transparent', cursor: 'pointer', minWidth: 0 }}>
+                    <span style={{ fontSize: 13, color: activeSection === col.id ? '#7c3aed' : '#9b89c4', flexShrink: 0 }}>📁</span>
+                    <span style={{ fontSize: 13, fontWeight: activeSection === col.id ? 700 : 500, color: activeSection === col.id ? '#2d1b69' : '#7c6aaa', flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col.name}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: activeSection === col.id ? 'rgba(155,127,232,0.15)' : 'rgba(0,0,0,0.05)', color: activeSection === col.id ? '#7c3aed' : '#9b89c4', flexShrink: 0 }}>{col.photo_count || 0}</span>
+                  </button>
+                  {/* Delete collection x */}
+                  <button onClick={() => handleDeleteCollection(col)} title="Delete collection"
+                    style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#c4b5fd', flexShrink: 0 }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = '#dc2626' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#c4b5fd' }}>✕</button>
+                </div>
+              ))}
+
+              {collections.length === 0 && (
+                <div style={{ fontSize: 11, color: '#c4b5fd', padding: '6px 10px', fontStyle: 'italic' }}>No collections yet</div>
+              )}
+
+              {/* Divider */}
+              <div style={{ height: 1, background: 'rgba(155,127,232,0.1)', margin: '8px 0' }} />
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#5b4a8a', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 8 }}>Status</div>
+
+              {[
+                { id: 'processing', label: 'In Queue', icon: '◷', count: processing },
+                { id: 'failed',     label: 'Failed',   icon: '⚠', count: failed     },
+              ].map(item => (
+                <NavItem key={item.id} {...item} active={activeSection === item.id} onClick={() => item.count > 0 && setActiveSection(item.id)} muted={item.count === 0} />
+              ))}
+
+              <button onClick={loadPhotos} style={{ width: '100%', marginTop: 8, padding: '7px', borderRadius: 10, border: '1px solid rgba(155,127,232,0.2)', background: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 600, color: '#7c3aed', cursor: 'pointer' }}>↺ Refresh</button>
+            </div>
+
+            {/* QR panel */}
+            <div style={{ ...glass(), padding: '14px 16px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#5b4a8a', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 12 }}>📱 Guest QR</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, background: '#fff', borderRadius: 12, padding: 8, border: '1px solid rgba(155,127,232,0.12)' }}>
+                {guestUrl
+                  ? <QRCode url={guestUrl} size={150} />
+                  : <div style={{ width: 150, height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 26, height: 26, border: '3px solid rgba(155,127,232,0.2)', borderTop: '3px solid #9b7fe8', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /></div>
+                }
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(155,127,232,0.12)', borderRadius: 9, padding: '6px 9px', fontSize: 9, color: '#7c6aaa', wordBreak: 'break-all', lineHeight: 1.5, marginBottom: 8 }}>{guestUrl}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <button onClick={copyLink} style={{ width: '100%', padding: '8px', borderRadius: 10, background: copied ? 'rgba(22,163,74,0.12)' : 'linear-gradient(135deg,#9b7fe8,#c084fc)', color: copied ? '#15803d' : '#fff', border: copied ? '1px solid rgba(22,163,74,0.25)' : 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{copied ? '✓ Link Copied!' : '🔗 Copy Guest Link'}</button>
+                <button onClick={downloadQR} style={{ width: '100%', padding: '8px', borderRadius: 10, background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(155,127,232,0.22)', fontSize: 11, fontWeight: 600, color: '#7c3aed', cursor: 'pointer' }}>⬇ Download QR</button>
+                <button onClick={shareWhatsApp} style={{ width: '100%', padding: '8px', borderRadius: 10, background: 'rgba(37,211,102,0.08)', border: '1px solid rgba(37,211,102,0.25)', fontSize: 11, fontWeight: 600, color: '#15803d', cursor: 'pointer' }}>💬 Share on WhatsApp</button>
+              </div>
+            </div>
+          </div>
+
+          {/* ══════════ MAIN CONTENT ══════════ */}
+          <div style={{ flex: 1, padding: '16px 20px 16px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {/* Upload progress */}
+            {showProgress && (
+              <UploadProgressBar progressRef={progressRef} uploading={uploading} onClear={() => {
+                setShowProgress(false)
+                progressRef.current = { done: 0, total: 0, errors: 0, dupes: 0, savingSum: 0, savingCount: 0, avgSaving: 0 }
+              }} />
+            )}
+
+            {/* Toolbar */}
+            <div style={{ ...glass(), padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              {/* Search */}
+              <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
+                <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#c4b5fd' }}>🔍</span>
+                <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search by filename…"
+                  style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1.5px solid rgba(155,127,232,0.18)', borderRadius: 11, fontSize: 13, color: '#2d1b69', background: 'rgba(255,255,255,0.6)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                  onFocus={e => e.target.style.border = '1.5px solid #9b7fe8'}
+                  onBlur={e => e.target.style.border  = '1.5px solid rgba(155,127,232,0.18)'} />
+              </div>
+
+              {/* Section label */}
+              <div style={{ fontSize: 12, color: '#7c3aed', fontWeight: 700, padding: '4px 10px', background: 'rgba(155,127,232,0.1)', borderRadius: 8, whiteSpace: 'nowrap' }}>
+                {sectionLabel} · {filteredPhotos.length}
+              </div>
+
+              <div style={{ flex: 1 }} />
+
+              {/* View toggle */}
+              <div style={{ display: 'flex', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(155,127,232,0.18)', borderRadius: 10, padding: 3, gap: 2 }}>
+                {[{ v: 'grid', icon: '⊞' }, { v: 'list', icon: '≡' }].map(m => (
+                  <button key={m.v} onClick={() => setViewMode(m.v)} style={{ width: 30, height: 28, borderRadius: 8, border: 'none', background: viewMode === m.v ? 'linear-gradient(135deg,#9b7fe8,#c084fc)' : 'transparent', color: viewMode === m.v ? '#fff' : '#9b89c4', fontSize: 15, cursor: 'pointer', transition: 'all .15s' }}>{m.icon}</button>
+                ))}
+              </div>
+
+              <button onClick={() => fileRef.current?.click()} disabled={uploading}
+                style={{ padding: '8px 18px', borderRadius: 12, background: 'linear-gradient(135deg,#2d1b69,#4b0082)', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: uploading ? 'not-allowed' : 'pointer', boxShadow: '0 3px 12px rgba(75,0,130,0.3)', opacity: uploading ? 0.6 : 1 }}>
+                ⬆ Upload
+              </button>
+            </div>
+
+            {/* ── Photo area ── */}
+            {loading ? (
+              <div style={{ ...glass(), flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ width: 48, height: 48, border: '3px solid rgba(155,127,232,0.2)', borderTop: '3px solid #9b7fe8', borderRadius: '50%', animation: 'spin .8s linear infinite', margin: '0 auto 16px' }} />
+                  <div style={{ fontSize: 14, color: '#9b89c4' }}>Loading photos…</div>
+                </div>
+              </div>
+
+            ) : filteredPhotos.length === 0 ? (
+              <div style={{ ...glass(), flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
+                <div style={{ textAlign: 'center', maxWidth: 360 }}>
+                  <div style={{ width: 100, height: 100, borderRadius: 24, background: 'linear-gradient(135deg,rgba(155,127,232,0.15),rgba(192,132,252,0.1))', border: '1px solid rgba(155,127,232,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 42, margin: '0 auto 18px', animation: 'float 3s ease-in-out infinite' }}>
+                    {isColSection ? '📁' : '📷'}
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#2d1b69', marginBottom: 8 }}>
+                    {searchQuery ? 'No photos match' : isColSection ? 'Collection is empty' : 'No photos yet'}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#9b89c4', lineHeight: 1.7, marginBottom: 24 }}>
+                    {searchQuery ? 'Try a different search term'
+                      : isColSection ? 'Hover a photo and use ⋮ → Add to Collection'
+                      : 'Upload your event photos to get started'}
+                  </div>
+                  {!searchQuery && !isColSection && (
+                    <button onClick={() => fileRef.current?.click()} style={{ padding: '13px 32px', borderRadius: 14, background: 'linear-gradient(135deg,#9b7fe8,#c084fc)', color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>⬆ Upload Photos</button>
+                  )}
+                </div>
+              </div>
+
+            ) : viewMode === 'grid' ? (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 12 }}>
+                  {visiblePhotos.map((photo, i) => (
+                    <PhotoCard
+                      key={photo.id}
+                      photo={photo} index={i}
+                      isCover={photo.id === coverPhotoId}
+                      selected={selectedIds.has(photo.id)}
+                      onOpen={handleOpen}
+                      onDownload={handleDownload}
+                      onToggleSelect={toggleSelect}
+                      collections={collections}
+                      colPhotoIds={colPhotoIds}
+                      onMakeCover={handleMakeCover}
+                      onDelete={setDeleteTarget}
+                      onAddToCol={handleAddToCol}
+                      onRemoveFromCol={handleRemoveFromCol}
+                    />
+                  ))}
+                </div>
+                {hasMore && (
+                  <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 4 }}>
+                    <button onClick={() => setVisibleCount(v => v + 30)} style={{ padding: '10px 28px', borderRadius: 12, border: '1px solid rgba(155,127,232,0.25)', background: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, color: '#7c3aed', cursor: 'pointer' }}>
+                      Load more · {filteredPhotos.length - visibleCount} remaining
+                    </button>
+                  </div>
+                )}
+              </>
+
+            ) : (
+              /* List view */
+              <div style={{ ...glass(), overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 100px 90px 110px', background: 'linear-gradient(135deg,rgba(75,0,130,0.82),rgba(99,38,163,0.88))', padding: '10px 16px' }}>
+                  {['#', 'Filename', 'Status', 'Size', 'Date'].map(h => (
+                    <div key={h} style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.8)', letterSpacing: '.05em' }}>{h}</div>
+                  ))}
+                </div>
+                {filteredPhotos.map((p, i) => {
+                  const fn = p.storage_key?.split('/').pop()?.split('_').slice(1).join('_') || '—'
+                  return (
+                    <div key={p.id}
+                      style={{ display: 'grid', gridTemplateColumns: '40px 1fr 100px 90px 110px', padding: '10px 16px', borderBottom: '1px solid rgba(155,127,232,0.06)', transition: 'background .1s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(155,127,232,0.05)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div style={{ fontSize: 12, color: '#9b89c4' }}>{i + 1}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {p.thumb_url
+                          ? <img src={p.thumb_url} alt="" loading="lazy" style={{ width: 32, height: 32, borderRadius: 7, objectFit: 'cover', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
+                          : <div style={{ width: 32, height: 32, borderRadius: 7, flexShrink: 0, background: `hsl(${(i * 47) % 360},25%,90%)` }} />}
+                        <span style={{ fontSize: 12, color: '#2d1b69', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fn}</span>
+                      </div>
+                      <div><span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: p.status === 'ready' ? 'rgba(34,197,94,0.12)' : p.status === 'failed' ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)', color: p.status === 'ready' ? '#15803d' : p.status === 'failed' ? '#dc2626' : '#d97706' }}>{p.status}</span></div>
+                      <div style={{ fontSize: 12, color: '#9b89c4' }}>{fmtSize(p.file_size_bytes) || '—'}</div>
+                      <div style={{ fontSize: 11, color: '#9b89c4' }}>{fmtDate(p.created_at) || '—'}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes spin  { to { transform: rotate(360deg); } }
+        @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+      `}</style>
+    </div>
+  )
+}
+
+// ── tiny nav-item sub-component ───────────────────────────────────────────────
+function NavItem({ id, label, icon, count, active, onClick, muted }) {
+  return (
+    <button onClick={onClick} style={{
+      width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+      padding: '8px 10px', borderRadius: 10, border: 'none',
+      background: active ? 'linear-gradient(135deg,rgba(155,127,232,0.15),rgba(192,132,252,0.1))' : 'transparent',
+      cursor: muted ? 'default' : 'pointer', marginBottom: 2, opacity: muted ? 0.45 : 1,
+    }}>
+      <span style={{ fontSize: 13, color: active ? '#7c3aed' : '#9b89c4' }}>{icon}</span>
+      <span style={{ fontSize: 13, fontWeight: active ? 700 : 500, color: active ? '#2d1b69' : '#7c6aaa', flex: 1, textAlign: 'left' }}>{label}</span>
+      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: active ? 'rgba(155,127,232,0.15)' : 'rgba(0,0,0,0.05)', color: active ? '#7c3aed' : '#9b89c4' }}>{count}</span>
+    </button>
+  )
+}

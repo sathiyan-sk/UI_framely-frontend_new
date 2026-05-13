@@ -191,9 +191,8 @@ function templateLabel(id) {
 }
 
 // ── Status: only published / unpublished / expired ───────────────────────────
-// expired = data expiry date (expires_at) has passed — NOT the event end date
 function getStatus(ev) {
-  if (ev.expires_at && new Date(ev.expires_at) < new Date()) return 'expired'
+  if (ev.end_date && new Date(ev.end_date) < new Date()) return 'expired'
   if (ev.is_published) return 'published'
   return 'unpublished'
 }

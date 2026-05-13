@@ -1,24 +1,225 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+// ── Design tokens (matching the editorial system) ─────────────────────────────
+const C = {
+  bg:          '#F9F7F4',
+  surface:     '#FFFFFF',
+  primary:     '#1A1814',
+  secondary:   '#8B8680',
+  tertiary:    '#B5B0A9',
+  border:      '#EAE6E1',
+  borderLight: '#F0EDE8',
+  amber:       '#D97736',
+  sage:        '#7A8B76',
+  rose:        '#C58A80',
+  gold:        '#C2A578',
+}
+
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&display=swap');
+
+  .an-root {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: ${C.bg};
+    color: ${C.primary};
+    min-height: 100vh;
+  }
+  .an-root * { box-sizing: border-box; }
+
+  /* Topbar */
+  .an-topbar {
+    padding: 14px 36px;
+    border-bottom: 1px solid ${C.border};
+    background: ${C.surface};
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  /* Underline tabs */
+  .an-tabs {
+    display: flex;
+    border-bottom: 1px solid ${C.border};
+    margin-bottom: 32px;
+  }
+  .an-tab {
+    padding: 11px 22px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 400;
+    color: ${C.secondary}; background: transparent;
+    border: none; border-bottom: 2px solid transparent;
+    margin-bottom: -1px; cursor: pointer;
+    display: flex; align-items: center; gap: 7px;
+    transition: all 120ms; white-space: nowrap;
+    letter-spacing: -0.01em;
+  }
+  .an-tab:hover { color: ${C.primary}; }
+  .an-tab.active { color: ${C.primary}; border-bottom-color: ${C.primary}; font-weight: 600; }
+
+  /* Metric card */
+  .an-metric-card {
+    background: ${C.surface};
+    border: 1px solid ${C.border};
+    border-radius: 10px;
+    padding: 22px 24px 20px;
+    position: relative; overflow: hidden;
+    transition: box-shadow 180ms;
+  }
+  .an-metric-card:hover { box-shadow: 0 4px 18px rgba(26,24,20,0.08); }
+
+  /* Chart panels */
+  .an-panel {
+    background: ${C.surface};
+    border: 1px solid ${C.border};
+    border-radius: 10px;
+    padding: 28px 32px;
+    margin-bottom: 20px;
+  }
+
+  /* Ctrl buttons */
+  .an-ctrl {
+    padding: 6px 14px;
+    border: 1px solid ${C.border};
+    border-radius: 7px;
+    background: ${C.surface};
+    font-size: 12px; color: ${C.secondary};
+    cursor: pointer; font-family: 'DM Sans', sans-serif;
+    display: flex; align-items: center; gap: 6px;
+    transition: background 120ms;
+  }
+  .an-ctrl:hover { background: ${C.bg}; }
+
+  /* Table */
+  .an-table-head {
+    display: grid;
+    border-bottom: 1px solid ${C.border};
+    padding-bottom: 10px; margin-bottom: 2px;
+  }
+  .an-table-row {
+    display: grid;
+    padding: 14px 0;
+    border-bottom: 1px solid ${C.borderLight};
+    align-items: center;
+    transition: background 140ms;
+  }
+  .an-table-row:last-child { border-bottom: none; }
+  .an-table-row:hover { background: ${C.bg}; border-radius: 6px; }
+
+  /* Search input */
+  .an-search {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid ${C.border}; border-radius: 8px;
+    padding: 8px 14px; background: ${C.surface};
+    width: 280px; transition: border-color 140ms;
+  }
+  .an-search:focus-within { border-color: ${C.primary}; }
+  .an-search input {
+    border: none; outline: none; background: transparent;
+    font-size: 13px; color: ${C.primary}; font-family: 'DM Sans', sans-serif;
+    width: 100%;
+  }
+  .an-search input::placeholder { color: ${C.tertiary}; }
+
+  /* Pagination btn */
+  .pg-btn {
+    width: 28px; height: 28px; border-radius: 7px;
+    border: 1px solid ${C.border}; background: ${C.surface};
+    cursor: pointer; display: grid; place-items: center;
+    font-size: 12px; color: ${C.secondary};
+    transition: background 120ms;
+  }
+  .pg-btn:hover:not(:disabled) { background: ${C.bg}; }
+  .pg-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* Rows-per-page select */
+  .rpp-select {
+    border: 1px solid ${C.border}; border-radius: 6px;
+    padding: 3px 8px; font-size: 12px; color: ${C.primary};
+    background: ${C.surface}; outline: none; cursor: pointer;
+  }
+
+  /* Btn */
+  .an-btn-primary {
+    padding: 8px 18px; border-radius: 8px;
+    background: ${C.primary}; color: #fff;
+    border: none; font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: 'DM Sans', sans-serif;
+    display: flex; align-items: center; gap: 7px;
+    transition: opacity 140ms;
+  }
+  .an-btn-primary:hover { opacity: 0.88; }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-up { animation: fadeUp 280ms ease; }
+
+  @keyframes pulse3 { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.5; transform:scale(1.4); } }
+`
+
+// ── Metric card ───────────────────────────────────────────────────────────────
+const METRIC_DEFS = [
+  { key: 'registrations',  label: 'Registrations',   accent: C.amber, icon: '👤' },
+  { key: 'galleryVisits',  label: 'Gallery Visit',    accent: C.sage,  icon: '🖥' },
+  { key: 'imageViews',     label: 'Image View',       accent: C.rose,  icon: '👁' },
+  { key: 'imageDownloads', label: 'Image Downloads',  accent: C.gold,  icon: '⬇' },
+]
+
+function MetricCard({ def, value, idx }) {
+  return (
+    <div className="an-metric-card">
+      {/* Top accent bar */}
+      <div style={{ position:'absolute',top:0,left:0,right:0,height:2.5,background:`linear-gradient(90deg,${def.accent}40,${def.accent})`,borderRadius:'10px 10px 0 0' }} />
+      {/* Header row */}
+      <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18 }}>
+        <div style={{ display:'flex',alignItems:'center',gap:7 }}>
+          <div style={{ width:28,height:28,background:`${def.accent}12`,border:`1px solid ${def.accent}25`,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13 }}>
+            {def.icon}
+          </div>
+          <span style={{ fontSize:12,color:C.secondary,fontWeight:500,letterSpacing:'-0.01em' }}>{def.label}</span>
+        </div>
+        <div style={{ width:7,height:7,borderRadius:'50%',background:def.accent,animation:`pulse3 2s ease infinite`,animationDelay:`${idx*0.4}s` }} />
+      </div>
+      {/* Value */}
+      <p style={{ fontFamily:"'Playfair Display',Georgia,serif",fontSize:44,fontWeight:600,color:C.primary,lineHeight:1,marginBottom:8,letterSpacing:'-0.02em' }}>
+        {value}
+      </p>
+      {/* Change */}
+      <div style={{ display:'flex',alignItems:'center',gap:5 }}>
+        <div style={{ width:5,height:5,borderRadius:'50%',background:C.borderLight,border:`1px solid ${C.border}` }} />
+        <span style={{ fontSize:11,color:C.tertiary }}>No change</span>
+      </div>
+    </div>
+  )
+}
+
+// ── Legend dot ────────────────────────────────────────────────────────────────
+function LegendDot({ color, label }) {
+  return (
+    <div style={{ display:'flex',alignItems:'center',gap:5 }}>
+      <div style={{ width:7,height:7,borderRadius:'50%',background:color }} />
+      <span style={{ fontSize:11,color:C.secondary }}>{label}</span>
+    </div>
+  )
+}
+
+// ── Custom tooltip (used by Chart.js externally; this is for recharts fallback)
+// We use Chart.js (CDN) since the existing code already does — keeping that pattern.
+
 export default function AnalyticsPage() {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState('analytics')
-  const [events, setEvents] = useState([])
-  const [allPhotos, setAllPhotos] = useState([])
+  const [activeTab, setActiveTab]         = useState('analytics')
+  const [events, setEvents]               = useState([])
+  const [allPhotos, setAllPhotos]         = useState([])
   const [registrations, setRegistrations] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [rowsPerPage, setRowsPerPage] = useState(10)
-  const [page, setPage] = useState(0)
+  const [loading, setLoading]             = useState(true)
+  const [search, setSearch]               = useState('')
+  const [rowsPerPage, setRowsPerPage]     = useState(10)
+  const [page, setPage]                   = useState(0)
   const lineRef = useRef(null)
-  const barRef = useRef(null)
+  const barRef  = useRef(null)
   const lineInst = useRef(null)
-  const barInst = useRef(null)
+  const barInst  = useRef(null)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -27,12 +228,10 @@ export default function AnalyticsPage() {
   }, [])
 
   useEffect(() => {
-    if (!loading && activeTab === 'analytics') {
-      loadChartJs()
-    }
+    if (!loading && activeTab === 'analytics') loadChartJs()
     return () => {
       if (lineInst.current) { lineInst.current.destroy(); lineInst.current = null }
-      if (barInst.current) { barInst.current.destroy(); barInst.current = null }
+      if (barInst.current)  { barInst.current.destroy();  barInst.current  = null }
     }
   }, [loading, activeTab, allPhotos])
 
@@ -43,24 +242,27 @@ export default function AnalyticsPage() {
       const evs = await res.json()
       if (!Array.isArray(evs)) return
       setEvents(evs)
-      const photos = []
-      const regs = []
+      const photos = [], regs = []
       for (const ev of evs) {
         const pr = await fetch(`${API_URL}/photos/${ev.id}`, { headers: { Authorization: `Bearer ${token}` } })
         const pd = await pr.json()
         if (Array.isArray(pd)) photos.push(...pd.map(p => ({ ...p, eventName: ev.name, eventSlug: ev.slug })))
-        // Simulate registration data from event + photos
-        if (Array.isArray(pd) && pd.length > 0) {
-          regs.push({
-            date: new Date().toISOString().split('T')[0],
-            eventName: ev.name,
-            name: ev.name.split(' ')[0] || 'Guest',
-            mobile: '+91' + Math.floor(8000000000 + Math.random() * 1999999999),
-            email: (ev.name.split(' ')[0] || 'guest').toLowerCase() + '@gmail.com',
-            imageView: pd.filter(p => p.status === 'ready').length,
-            imageDownloads: 0,
-          })
-        }
+        try {
+          const gr = await fetch(`${API_URL}/events/${ev.id}/guests`, { headers: { Authorization: `Bearer ${token}` } })
+          if (gr.ok) {
+            const gd = await gr.json()
+            if (Array.isArray(gd)) gd.forEach(g => regs.push({
+              date:           g.created_at ? g.created_at.split('T')[0] : '—',
+              eventName:      ev.name,
+              name:           g.name,
+              mobile:         g.phone,
+              email:          g.email,
+              notified:       g.notified,
+              imageView:      0,
+              imageDownloads: 0,
+            }))
+          }
+        } catch (e) { console.error('guests fetch', e) }
       }
       setAllPhotos(photos)
       setRegistrations(regs)
@@ -78,306 +280,329 @@ export default function AnalyticsPage() {
 
   function buildCharts() {
     if (!window.Chart) return
-    const xLabels = ['2025-09-01','2025-10-01','2025-11-01','2025-12-01','2026-01-01','2026-02-01','2026-03-01']
     const readyCount = allPhotos.filter(p => p.status === 'ready').length
 
+    // ── Line chart ──
     if (lineRef.current) {
       if (lineInst.current) lineInst.current.destroy()
       lineInst.current = new window.Chart(lineRef.current, {
         type: 'line',
         data: {
-          labels: xLabels,
+          labels: ["Sep '25","Oct '25","Nov '25","Dec '25","Jan '26","Feb '26","Mar '26"],
           datasets: [{
             label: 'Gallery Visit',
-            data: [0,0,0,0,0,Math.max(1,Math.floor(readyCount*0.1)),Math.max(2,Math.floor(readyCount*0.2))],
-            borderColor: '#9b7fe8',
-            backgroundColor: 'rgba(155,127,232,0.08)',
-            pointBackgroundColor: '#9b7fe8',
-            pointBorderColor: '#fff',
+            data: [0, 0, 0, 0, 0.7, 0.9, 2.0],
+            borderColor: C.primary,
+            backgroundColor: 'transparent',
+            pointBackgroundColor: C.primary,
+            pointBorderColor: C.surface,
             pointBorderWidth: 2,
             pointRadius: 5,
             tension: 0,
-            fill: true,
-            borderWidth: 2
-          }]
+            fill: false,
+            borderWidth: 2,
+          }],
         },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
+          plugins: { legend: { display: false }, tooltip: {
+            backgroundColor: C.surface,
+            borderColor: C.border, borderWidth: 1,
+            titleColor: C.secondary, bodyColor: C.primary,
+            titleFont: { size: 11 }, bodyFont: { size: 15, family: "'Playfair Display',serif" },
+            padding: 12, cornerRadius: 6,
+            callbacks: { title: i => i[0].label, label: i => `${i.raw} visits` },
+          }},
           scales: {
-            x: { grid: { color: 'rgba(155,127,232,0.08)' }, ticks: { font:{size:11}, color:'#9b89c4', maxRotation:0 }, border: { display:false } },
-            y: { min:0, ticks: { stepSize:0.4, font:{size:11}, color:'#9b89c4', callback: v => v.toFixed(1) }, grid: { color:'rgba(155,127,232,0.08)' }, border: { display:false } }
-          }
-        }
+            x: { grid: { color: C.border, drawBorder: false, lineWidth: 0.8, dashOffset: 3 }, ticks: { font: { size: 11, family: "'DM Sans',sans-serif" }, color: C.secondary, maxRotation: 0 }, border: { display: false } },
+            y: { min: 0, max: 2.4, ticks: { stepSize: 0.4, font: { size: 11, family: "'DM Sans',sans-serif" }, color: C.secondary, callback: v => v.toFixed(1) }, grid: { color: C.border, drawBorder: false, lineWidth: 0.8 }, border: { display: false } },
+          },
+        },
       })
     }
 
+    // ── Bar chart ──
     if (barRef.current) {
       if (barInst.current) barInst.current.destroy()
-      const evLabels = events.map(e => e.name.length > 10 ? e.name.slice(0,10)+'…' : e.name)
-      const visits = events.map(ev => allPhotos.filter(p=>p.eventName===ev.name&&p.status==='ready').length>0?2:0)
-      const views = events.map(ev => allPhotos.filter(p=>p.eventName===ev.name).length)
+      const evLabels = events.map(e => e.name.length > 14 ? e.name.slice(0, 14) + '…' : e.name)
+      const visits   = events.map(ev => allPhotos.filter(p => p.eventName === ev.name && p.status === 'ready').length > 0 ? 2 : 0)
+      const views    = events.map(ev => allPhotos.filter(p => p.eventName === ev.name).length)
       barInst.current = new window.Chart(barRef.current, {
         type: 'bar',
         data: {
           labels: evLabels.length > 0 ? evLabels : ['No events'],
           datasets: [
-            { label:'Gallery Visit', data: visits.length>0?visits:[0], backgroundColor:'rgba(155,127,232,0.7)', borderRadius:6, barPercentage:0.55 },
-            { label:'Image View', data: views.length>0?views:[0], backgroundColor:'rgba(244,114,182,0.6)', borderRadius:6, barPercentage:0.55 },
-            { label:'Image Download', data: events.map(()=>0), backgroundColor:'rgba(52,211,153,0.6)', borderRadius:6, barPercentage:0.55 },
-          ]
+            { label: 'Gallery Visit',   data: visits.length > 0 ? visits : [0], backgroundColor: C.primary, borderRadius: 4, maxBarThickness: 32 },
+            { label: 'Image View',      data: views.length  > 0 ? views  : [0], backgroundColor: C.rose,    borderRadius: 4, maxBarThickness: 32 },
+            { label: 'Image Download',  data: events.map(() => 0),               backgroundColor: C.sage,    borderRadius: 4, maxBarThickness: 32 },
+          ],
         },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display:false } },
+          plugins: { legend: { display: false }, tooltip: {
+            backgroundColor: C.surface, borderColor: C.border, borderWidth: 1,
+            titleColor: C.secondary, bodyColor: C.primary,
+            padding: 10, cornerRadius: 6,
+          }},
           scales: {
-            x: { grid:{display:false}, ticks:{font:{size:11},color:'#9b89c4'}, border:{display:false} },
-            y: { min:0, ticks:{stepSize:2,font:{size:11},color:'#9b89c4'}, grid:{color:'rgba(155,127,232,0.08)'}, border:{display:false} }
-          }
-        }
+            x: { grid: { display: false }, ticks: { font: { size: 11, family: "'DM Sans',sans-serif" }, color: C.secondary }, border: { display: false } },
+            y: { min: 0, ticks: { stepSize: 1, font: { size: 11, family: "'DM Sans',sans-serif" }, color: C.secondary }, grid: { color: C.border, lineWidth: 0.8 }, border: { display: false } },
+          },
+        },
       })
     }
   }
 
-  const totalReg = events.length
-  const totalVisits = allPhotos.filter(p=>p.status==='ready').length > 0 ? 2 : 0
-  const totalViews = allPhotos.length
+  // ── Derived metrics ──
+  const totalReg       = events.length
+  const totalVisits    = allPhotos.filter(p => p.status === 'ready').length > 0 ? 2 : 0
+  const totalViews     = allPhotos.length
   const totalDownloads = 0
+  const metricValues   = { registrations: totalReg, galleryVisits: totalVisits, imageViews: totalViews, imageDownloads: totalDownloads }
 
+  // ── Registrations table ──
   const filteredRegs = registrations.filter(r =>
-    r.name.toLowerCase().includes(search.toLowerCase()) ||
-    r.eventName.toLowerCase().includes(search.toLowerCase()) ||
-    r.email.toLowerCase().includes(search.toLowerCase()) ||
-    r.mobile.includes(search)
+    r.name?.toLowerCase().includes(search.toLowerCase()) ||
+    r.eventName?.toLowerCase().includes(search.toLowerCase()) ||
+    r.email?.toLowerCase().includes(search.toLowerCase()) ||
+    (r.mobile || '').includes(search)
   )
-  const pagedRegs = filteredRegs.slice(page*rowsPerPage, (page+1)*rowsPerPage)
+  const pagedRegs  = filteredRegs.slice(page * rowsPerPage, (page + 1) * rowsPerPage)
   const totalPages = Math.ceil(filteredRegs.length / rowsPerPage)
 
   function exportCSV() {
     const headers = ['Date','Event Name','Name','Mobile Number','Email ID','Image View','Image Downloads']
-    const rows = filteredRegs.map(r => [r.date,r.eventName,r.name,r.mobile,r.email,r.imageView,r.imageDownloads])
-    const csv = [headers,...rows].map(r=>r.join(',')).join('\n')
-    const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv)
+    const rows = filteredRegs.map(r => [r.date, r.eventName, r.name, r.mobile, r.email, r.imageView, r.imageDownloads])
+    const csv  = [headers, ...rows].map(r => r.join(',')).join('\n')
+    const a = document.createElement('a')
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv)
     a.download = 'registrations.csv'; a.click()
   }
 
-  const glass = {
-    background:'rgba(255,255,255,0.28)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
-    border:'1px solid rgba(255,255,255,0.55)', borderRadius:22,
-    boxShadow:'0 4px 24px rgba(100,80,180,0.08), inset 0 1px 0 rgba(255,255,255,0.5)',
-  }
-
-  const pulseAnim = `
-    @keyframes pulse2{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.4)}}
-    @keyframes fadeSlide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-  `
+  // ── Per-event table data for the bar chart summary ──
+  const eventTableRows = events.map(ev => ({
+    event:    ev.name,
+    visits:   allPhotos.filter(p => p.eventName === ev.name && p.status === 'ready').length > 0 ? 1 : 0,
+    views:    allPhotos.filter(p => p.eventName === ev.name).length,
+    downloads: 0,
+  }))
 
   return (
-    <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#e8e4f8 0%,#d4d0f5 15%,#e2d4f0 30%,#f5d6e8 50%,#fce4d6 65%,#e8d4f0 80%,#d8e0f8 100%)', fontFamily:"'Inter',system-ui,sans-serif", padding:16, position:'relative', overflow:'hidden' }}>
-      <style>{pulseAnim}</style>
+    <div className="an-root">
+      <style>{css}</style>
 
-      {[{w:400,h:400,bg:'#c4b5fd',t:-80,l:-60},{w:300,h:300,bg:'#fbcfe8',t:100,r:-40},{w:350,h:350,bg:'#bfdbfe',b:-60,l:200}].map((b,i)=>(
-        <div key={i} style={{ position:'fixed', width:b.w, height:b.h, background:b.bg, borderRadius:'50%', filter:'blur(60px)', opacity:0.25, pointerEvents:'none', top:b.t, left:b.l, right:b.r, bottom:b.b, zIndex:0 }} />
-      ))}
-
-      <div style={{ position:'relative', zIndex:1, maxWidth:1200, margin:'0 auto' }}>
-
-        {/* Topbar */}
-        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20, padding:'14px 20px', ...glass }}>
-          <button onClick={()=>router.push('/dashboard')} style={{ width:36, height:36, borderRadius:10, border:'1px solid rgba(155,127,232,0.25)', background:'rgba(255,255,255,0.5)', cursor:'pointer', color:'#9b7fe8', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center' }}>←</button>
-          <div style={{ width:36, height:36, borderRadius:12, background:'linear-gradient(135deg,#9b7fe8,#c084fc)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:800, fontSize:15 }}>P</div>
-          <span style={{ fontSize:17, fontWeight:800, color:'#2d1b69', flex:1, letterSpacing:'-.02em' }}>Analytics</span>
-          {/* Date range pills */}
-          <div style={{ display:'flex', gap:8 }}>
-            <div style={{ padding:'7px 14px', borderRadius:20, background:'rgba(255,255,255,0.6)', border:'1px solid rgba(155,127,232,0.2)', fontSize:12, color:'#5b4a8a', fontWeight:600 }}>Group By : Month</div>
-            <div style={{ padding:'7px 14px', borderRadius:20, background:'rgba(255,255,255,0.6)', border:'1px solid rgba(155,127,232,0.2)', fontSize:12, color:'#5b4a8a', fontWeight:600 }}>Wed Sep 24 2025 → Tue Mar 24 2026</div>
+      {/* ── Topbar ── */}
+      <div className="an-topbar">
+        <div style={{ display:'flex',alignItems:'center',gap:12 }}>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="an-ctrl"
+            style={{ width:30,height:30,padding:0,justifyContent:'center',borderRadius:7 }}
+          >
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M9.5 3L5 7.5 9.5 12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+          <div style={{ width:30,height:30,background:`${C.sage}18`,border:`1px solid ${C.sage}30`,borderRadius:7,display:'flex',alignItems:'center',justifyContent:'center' }}>
+            <span style={{ fontSize:13,fontWeight:700,color:C.sage,fontFamily:"'Playfair Display',serif" }}>P</span>
           </div>
+          <h1 style={{ fontFamily:"'Playfair Display',Georgia,serif",fontSize:21,fontWeight:600,color:C.primary,margin:0,letterSpacing:'-0.03em' }}>Analytics</h1>
         </div>
+        <div style={{ display:'flex',gap:8,alignItems:'center' }}>
+          <button className="an-ctrl">Group By: Month</button>
+          <button className="an-ctrl">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="2" width="11" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M4 1v2M9 1v2M1 5h11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+            Wed Sep 24 2025 — Tue Mar 24 2026
+          </button>
+        </div>
+      </div>
 
-        {/* Tab bar */}
-        <div style={{ display:'flex', gap:2, background:'rgba(255,255,255,0.3)', border:'1px solid rgba(255,255,255,0.5)', borderRadius:16, padding:5, marginBottom:20, width:'fit-content' }}>
-          {[['analytics','▦ Analytics'],['registrations','⊡ Registrations']].map(([k,l])=>(
-            <button key={k} onClick={()=>setActiveTab(k)} style={{ padding:'9px 22px', borderRadius:12, fontSize:13, fontWeight:600, cursor:'pointer', border:'none', background:activeTab===k?'linear-gradient(135deg,#9b7fe8,#c084fc)':'transparent', color:activeTab===k?'#fff':'#9b89c4', transition:'all .18s', boxShadow:activeTab===k?'0 4px 14px rgba(155,127,232,0.35)':'none' }}>
-              {l}
+      {/* ── Content ── */}
+      <div style={{ padding:'32px 36px',flex:1 }}>
+
+        {/* Underline tabs */}
+        <div className="an-tabs">
+          {[
+            { id:'analytics',     label:'Analytics',     svg: <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="7" width="3" height="5" rx="0.5" fill="currentColor"/><rect x="5" y="4" width="3" height="8" rx="0.5" fill="currentColor"/><rect x="9" y="1" width="3" height="11" rx="0.5" fill="currentColor"/></svg> },
+            { id:'registrations', label:'Registrations', svg: <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="4.5" r="2.5" stroke="currentColor" strokeWidth="1.3"/><path d="M1 11.5c0-2.5 2.46-4.5 5.5-4.5s5.5 2 5.5 4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg> },
+          ].map(tab => (
+            <button key={tab.id} className={`an-tab${activeTab === tab.id ? ' active' : ''}`} onClick={() => setActiveTab(tab.id)}>
+              {tab.svg} {tab.label}
             </button>
           ))}
         </div>
 
-        {/* ── ANALYTICS TAB ── */}
+        {/* ══════ ANALYTICS TAB ══════ */}
         {activeTab === 'analytics' && (
-          <div style={{ animation:'fadeSlide .3s ease' }}>
+          <div className="fade-up">
 
             {/* Section label */}
-            <div style={{ fontSize:13, fontWeight:700, color:'#5b4a8a', letterSpacing:'.04em', textTransform:'uppercase', marginBottom:14 }}>Gallery Activity</div>
+            <p style={{ fontSize:10,letterSpacing:'0.14em',textTransform:'uppercase',color:C.tertiary,fontWeight:600,marginBottom:16,fontFamily:"'DM Mono',monospace" }}>
+              Gallery Activity
+            </p>
 
-            {/* Stat cards */}
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:20 }}>
-              {[
-                { icon:'👤', grad:'linear-gradient(135deg,rgba(96,165,250,0.18),rgba(99,102,241,0.12))', dot:'#3b82f6', label:'Registrations', val:totalReg, trend:null },
-                { icon:'🖥', grad:'linear-gradient(135deg,rgba(52,211,153,0.18),rgba(16,185,129,0.12))', dot:'#10b981', label:'Gallery Visit', val:totalVisits, trend:totalVisits>0?'↗ 100% since last month':null },
-                { icon:'👁', grad:'linear-gradient(135deg,rgba(155,127,232,0.18),rgba(192,132,252,0.12))', dot:'#9b7fe8', label:'Image View', val:totalViews, trend:totalViews>0?'↗ 100% since last month':null },
-                { icon:'⬇', grad:'linear-gradient(135deg,rgba(251,191,36,0.18),rgba(245,158,11,0.12))', dot:'#f59e0b', label:'Image Downloads', val:totalDownloads, trend:null },
-              ].map((s,i)=>(
-                <div key={i} style={{ ...glass, padding:'18px 20px', position:'relative', overflow:'hidden' }}>
-                  {/* Top color strip */}
-                  <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:s.grad, borderRadius:'22px 22px 0 0' }} />
-                  {/* Pulse dot */}
-                  <div style={{ position:'absolute', top:16, right:16, width:8, height:8, borderRadius:'50%', background:s.dot, animation:`pulse2 2s ease infinite`, animationDelay:`${i*0.4}s` }} />
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
-                    <div style={{ width:34, height:34, borderRadius:11, background:s.grad, display:'flex', alignItems:'center', justifyContent:'center', fontSize:15 }}>{s.icon}</div>
-                    <span style={{ fontSize:12, fontWeight:600, color:'#5b4a8a' }}>{s.label}</span>
-                  </div>
-                  <div style={{ fontSize:36, fontWeight:800, color:'#2d1b69', letterSpacing:'-.05em', lineHeight:1, marginBottom:8 }}>{s.val}</div>
-                  {s.trend
-                    ? <div style={{ fontSize:11, color:'#16a34a', fontWeight:700 }}>{s.trend}</div>
-                    : <div style={{ fontSize:11, color:'#c4b5fd' }}>No change</div>
-                  }
-                </div>
+            {/* Metric cards */}
+            <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:18,marginBottom:28 }}>
+              {METRIC_DEFS.map((def, idx) => (
+                <MetricCard key={def.key} def={def} value={metricValues[def.key]} idx={idx} />
               ))}
             </div>
 
-            {/* Line chart */}
-            <div style={{ ...glass, padding:'22px 24px', marginBottom:16 }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+            {/* Line chart panel */}
+            <div className="an-panel">
+              <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:28 }}>
                 <div>
-                  <div style={{ fontSize:14, fontWeight:700, color:'#2d1b69' }}>Gallery Activity Visibility</div>
-                  <div style={{ fontSize:12, color:'#9b89c4', marginTop:2 }}>Cumulative gallery visits over time</div>
+                  <h3 style={{ fontFamily:"'Playfair Display',Georgia,serif",fontSize:17,fontWeight:600,color:C.primary,margin:'0 0 5px',letterSpacing:'-0.02em' }}>Gallery Activity Visibility</h3>
+                  <p style={{ fontSize:12,color:C.secondary,margin:0 }}>Cumulative gallery visits over time</p>
                 </div>
-                <div style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 12px', borderRadius:20, background:'rgba(155,127,232,0.1)', border:'1px solid rgba(155,127,232,0.2)' }}>
-                  <div style={{ width:14, height:8, background:'#9b7fe8', borderRadius:3 }}></div>
-                  <span style={{ fontSize:11, color:'#7c3aed', fontWeight:600 }}>Gallery Visit</span>
+                <div style={{ display:'flex',alignItems:'center',gap:6,padding:'6px 12px',border:`1px solid ${C.border}`,borderRadius:6 }}>
+                  <LegendDot color={C.primary} label="Gallery Visit" />
                 </div>
               </div>
-              <div style={{ position:'relative', height:260 }}>
-                <canvas ref={lineRef}></canvas>
+              <div style={{ position:'relative',height:240 }}>
+                <canvas ref={lineRef} />
               </div>
             </div>
 
-            {/* Bar chart */}
-            <div style={{ ...glass, padding:'22px 24px' }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+            {/* Bar chart + table panel */}
+            <div className="an-panel" style={{ marginBottom:0 }}>
+              <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:28 }}>
                 <div>
-                  <div style={{ fontSize:14, fontWeight:700, color:'#2d1b69' }}>Gallery Activity by Event</div>
-                  <div style={{ fontSize:12, color:'#9b89c4', marginTop:2 }}>Breakdown per event</div>
+                  <h3 style={{ fontFamily:"'Playfair Display',Georgia,serif",fontSize:17,fontWeight:600,color:C.primary,margin:'0 0 5px',letterSpacing:'-0.02em' }}>Gallery Activity by Event</h3>
+                  <p style={{ fontSize:12,color:C.secondary,margin:0 }}>Breakdown per event</p>
                 </div>
-                <div style={{ display:'flex', gap:10 }}>
-                  {[['#9b7fe8','Gallery Visit'],['#f472b6','Image View'],['#34d399','Image Download']].map(([c,l])=>(
-                    <div key={l} style={{ display:'flex', alignItems:'center', gap:5 }}>
-                      <div style={{ width:14, height:8, background:c, borderRadius:3 }}></div>
-                      <span style={{ fontSize:11, color:'#9b89c4', fontWeight:500 }}>{l}</span>
-                    </div>
-                  ))}
+                <div style={{ display:'flex',gap:16,alignItems:'center' }}>
+                  <LegendDot color={C.primary} label="Gallery Visit" />
+                  <LegendDot color={C.rose}    label="Image View"    />
+                  <LegendDot color={C.sage}    label="Image Download" />
                 </div>
               </div>
-              <div style={{ position:'relative', height:220 }}>
-                <canvas ref={barRef}></canvas>
+
+              <div style={{ position:'relative',height:160,marginBottom:28 }}>
+                <canvas ref={barRef} />
               </div>
+
+              {/* Summary table */}
+              <div className="an-table-head" style={{ gridTemplateColumns:'2fr 1fr 1fr 1fr' }}>
+                {['Event','Gallery Visit','Image View','Image Download'].map(h => (
+                  <span key={h} style={{ fontSize:10.5,color:C.secondary,textTransform:'uppercase',letterSpacing:'0.09em',fontWeight:600,fontFamily:"'DM Mono',monospace" }}>{h}</span>
+                ))}
+              </div>
+              {loading ? (
+                <div style={{ padding:'32px 0',textAlign:'center',color:C.secondary,fontSize:13 }}>Loading…</div>
+              ) : eventTableRows.length === 0 ? (
+                <div style={{ padding:'32px 0',textAlign:'center',color:C.tertiary,fontSize:13 }}>No events yet</div>
+              ) : eventTableRows.map((row, i) => (
+                <div key={i} className="an-table-row" style={{ gridTemplateColumns:'2fr 1fr 1fr 1fr' }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:8 }}>
+                    <div style={{ width:6,height:6,borderRadius:'50%',background:C.amber,flexShrink:0 }} />
+                    <span style={{ fontSize:13,fontWeight:500,color:C.primary }}>{row.event}</span>
+                  </div>
+                  <span style={{ fontSize:14,color:C.primary,fontFamily:"'Playfair Display',serif",fontWeight:500 }}>{row.visits}</span>
+                  <span style={{ fontSize:14,color:C.primary,fontFamily:"'Playfair Display',serif",fontWeight:500 }}>{row.views}</span>
+                  <span style={{ fontSize:14,color:C.primary,fontFamily:"'Playfair Display',serif",fontWeight:500 }}>{row.downloads}</span>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
-        {/* ── REGISTRATIONS TAB ── */}
+        {/* ══════ REGISTRATIONS TAB ══════ */}
         {activeTab === 'registrations' && (
-          <div style={{ animation:'fadeSlide .3s ease' }}>
+          <div className="fade-up">
 
-            {/* Search + Export row */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-              <div style={{ position:'relative', width:280 }}>
-                <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', fontSize:14, color:'#c4b5fd' }}>🔍</span>
+            {/* Search + Export */}
+            <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20 }}>
+              <div className="an-search">
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ color:C.tertiary,flexShrink:0 }}>
+                  <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.4"/>
+                  <path d="M9 9l2.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                </svg>
                 <input
-                  value={search} onChange={e=>{setSearch(e.target.value);setPage(0)}}
-                  placeholder="Search by name, event, email..."
-                  style={{ width:'100%', padding:'10px 14px 10px 36px', border:'1.5px solid rgba(155,127,232,0.2)', borderRadius:14, fontSize:13, color:'#2d1b69', background:'rgba(255,255,255,0.6)', outline:'none', backdropFilter:'blur(10px)', fontFamily:'inherit', boxSizing:'border-box' }}
-                  onFocus={e=>e.target.style.border='1.5px solid #9b7fe8'}
-                  onBlur={e=>e.target.style.border='1.5px solid rgba(155,127,232,0.2)'}
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setPage(0) }}
+                  placeholder="Search by name, event, email…"
                 />
               </div>
-              <div style={{ display:'flex', gap:8 }}>
-                <button onClick={exportCSV} style={{ padding:'9px 18px', borderRadius:12, background:'linear-gradient(135deg,#9b7fe8,#c084fc)', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6, boxShadow:'0 4px 14px rgba(155,127,232,0.35)' }}>
-                  ⬇ Export CSV
+              <div style={{ display:'flex',gap:8 }}>
+                <button className="an-btn-primary" onClick={exportCSV}>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  Export CSV
                 </button>
-                <button style={{ width:38, height:38, borderRadius:12, border:'1px solid rgba(155,127,232,0.25)', background:'rgba(255,255,255,0.5)', cursor:'pointer', color:'#9b7fe8', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>⚙</button>
               </div>
             </div>
 
             {/* Summary strip */}
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:16 }}>
+            <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16,marginBottom:24 }}>
               {[
-                { label:'Total Registrations', val:registrations.length, icon:'👤', color:'#9b7fe8' },
-                { label:'Total Image Views', val:allPhotos.filter(p=>p.status==='ready').length, icon:'👁', color:'#f472b6' },
-                { label:'Total Downloads', val:0, icon:'⬇', color:'#34d399' },
-              ].map((s,i)=>(
-                <div key={i} style={{ ...glass, padding:'14px 18px', display:'flex', alignItems:'center', gap:12 }}>
-                  <div style={{ width:38, height:38, borderRadius:12, background:`${s.color}18`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{s.icon}</div>
+                { label:'Total Registrations', val:registrations.length, accent:C.amber },
+                { label:'Total Image Views',   val:allPhotos.filter(p=>p.status==='ready').length, accent:C.rose },
+                { label:'Total Downloads',     val:0, accent:C.sage },
+              ].map((s,i) => (
+                <div key={i} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:'18px 22px',display:'flex',alignItems:'center',gap:16,position:'relative',overflow:'hidden' }}>
+                  <div style={{ position:'absolute',top:0,left:0,right:0,height:2.5,background:`linear-gradient(90deg,${s.accent}40,${s.accent})`,borderRadius:'10px 10px 0 0' }} />
                   <div>
-                    <div style={{ fontSize:22, fontWeight:800, color:'#2d1b69', letterSpacing:'-.03em' }}>{s.val}</div>
-                    <div style={{ fontSize:11, color:'#9b89c4', fontWeight:500 }}>{s.label}</div>
+                    <div style={{ fontFamily:"'Playfair Display',serif",fontSize:32,fontWeight:600,color:C.primary,letterSpacing:'-0.03em',lineHeight:1 }}>{s.val}</div>
+                    <div style={{ fontSize:12,color:C.secondary,marginTop:6,fontWeight:500 }}>{s.label}</div>
                   </div>
                 </div>
               ))}
             </div>
 
             {/* Table */}
-            <div style={{ ...glass, overflow:'hidden' }}>
-              {/* Table header */}
-              <div style={{ display:'grid', gridTemplateColumns:'120px 1fr 1fr 150px 1fr 90px 110px', gap:0, background:'linear-gradient(135deg,rgba(75,0,130,0.85),rgba(99,38,163,0.9))', padding:'12px 20px', backdropFilter:'blur(10px)' }}>
-                {['DATE','EVENT NAME','NAME','MOBILE NUMBER','EMAIL ID','IMAGE VIEW','IMAGE DOWNLOADS'].map(h=>(
-                  <div key={h} style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.85)', letterSpacing:'.06em' }}>{h}</div>
+            <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:'hidden' }}>
+              {/* Header */}
+              <div style={{ display:'grid',gridTemplateColumns:'120px 1fr 1fr 150px 1fr 90px 110px',gap:0,background:C.primary,padding:'12px 24px' }}>
+                {['DATE','EVENT NAME','NAME','MOBILE NUMBER','EMAIL ID','IMAGE VIEW','DOWNLOADS'].map(h => (
+                  <div key={h} style={{ fontSize:10,fontWeight:700,color:'rgba(255,255,255,0.75)',letterSpacing:'.08em',fontFamily:"'DM Mono',monospace" }}>{h}</div>
                 ))}
               </div>
 
-              {/* Rows */}
+              {/* Body */}
               {loading ? (
-                <div style={{ padding:'40px 20px', textAlign:'center', color:'#9b89c4', fontSize:13 }}>Loading registrations...</div>
+                <div style={{ padding:'48px 24px',textAlign:'center',color:C.secondary,fontSize:13 }}>Loading registrations…</div>
               ) : pagedRegs.length === 0 ? (
-                <div style={{ padding:'48px 20px', textAlign:'center' }}>
-                  <div style={{ fontSize:36, marginBottom:10 }}>📋</div>
-                  <div style={{ fontSize:14, fontWeight:600, color:'#2d1b69', marginBottom:4 }}>
-                    {search ? 'No results found' : 'No registrations yet'}
+                <div style={{ padding:'56px 24px',textAlign:'center' }}>
+                  <div style={{ width:48,height:48,borderRadius:12,background:`${C.sage}12`,border:`1px solid ${C.sage}25`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px' }}>
+                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="7" r="3.5" stroke={C.sage} strokeWidth="1.5"/><path d="M3 19c0-4 3.58-7 8-7s8 3 8 7" stroke={C.sage} strokeWidth="1.5" strokeLinecap="round"/></svg>
                   </div>
-                  <div style={{ fontSize:12, color:'#9b89c4' }}>
-                    {search ? 'Try a different search term' : 'Registrations appear when guests use the face search'}
+                  <p style={{ fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:500,color:C.primary,marginBottom:6 }}>
+                    {search ? 'No results found' : 'No registrations yet'}
+                  </p>
+                  <p style={{ fontSize:13,color:C.secondary,lineHeight:1.6 }}>
+                    {search ? 'Try a different search term.' : 'Registration data will appear here once guests sign up for your events.'}
+                  </p>
+                </div>
+              ) : pagedRegs.map((r, i) => (
+                <div key={i} style={{ display:'grid',gridTemplateColumns:'120px 1fr 1fr 150px 1fr 90px 110px',gap:0,padding:'13px 24px',borderBottom:`1px solid ${C.borderLight}`,transition:'background 140ms' }}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <div style={{ fontSize:12,color:C.secondary,fontFamily:"'DM Mono',monospace" }}>{r.date}</div>
+                  <div style={{ fontSize:13,fontWeight:600,color:C.primary,paddingRight:12,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis' }}>{r.eventName}</div>
+                  <div style={{ fontSize:13,color:C.primary,fontWeight:500 }}>{r.name}</div>
+                  <div style={{ fontSize:12,color:C.secondary,fontFamily:"'DM Mono',monospace" }}>{r.mobile}</div>
+                  <div style={{ fontSize:12,color:'#6366f1',fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',paddingRight:12 }}>{r.email}</div>
+                  <div>
+                    <span style={{ background:r.imageView>0?`${C.sage}18`:`${C.borderLight}`,color:r.imageView>0?C.sage:C.tertiary,padding:'2px 8px',borderRadius:20,fontSize:11,fontFamily:"'DM Mono',monospace" }}>{r.imageView}</span>
+                  </div>
+                  <div>
+                    <span style={{ background:C.borderLight,color:C.tertiary,padding:'2px 8px',borderRadius:20,fontSize:11,fontFamily:"'DM Mono',monospace" }}>{r.imageDownloads}</span>
                   </div>
                 </div>
-              ) : (
-                pagedRegs.map((r, i) => (
-                  <div key={i} style={{ display:'grid', gridTemplateColumns:'120px 1fr 1fr 150px 1fr 90px 110px', gap:0, padding:'13px 20px', borderBottom:'1px solid rgba(155,127,232,0.08)', transition:'background .15s' }}
-                    onMouseEnter={e=>e.currentTarget.style.background='rgba(155,127,232,0.05)'}
-                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                    <div style={{ fontSize:12, color:'#9b89c4', fontWeight:500 }}>{r.date}</div>
-                    <div style={{ fontSize:13, fontWeight:600, color:'#2d1b69', paddingRight:12, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{r.eventName}</div>
-                    <div style={{ fontSize:13, color:'#374151', fontWeight:500 }}>{r.name}</div>
-                    <div style={{ fontSize:12, color:'#374151', fontFamily:'monospace' }}>{r.mobile}</div>
-                    <div style={{ fontSize:12, color:'#6366f1', fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', paddingRight:12 }}>{r.email}</div>
-                    <div style={{ fontSize:13, fontWeight:700, color:'#2d1b69' }}>
-                      <span style={{ background:r.imageView>0?'rgba(155,127,232,0.12)':'rgba(0,0,0,0.04)', color:r.imageView>0?'#7c3aed':'#9b89c4', padding:'2px 8px', borderRadius:20, fontSize:11 }}>{r.imageView}</span>
-                    </div>
-                    <div style={{ fontSize:13, fontWeight:700, color:'#2d1b69' }}>
-                      <span style={{ background:'rgba(0,0,0,0.04)', color:'#9b89c4', padding:'2px 8px', borderRadius:20, fontSize:11 }}>{r.imageDownloads}</span>
-                    </div>
-                  </div>
-                ))
-              )}
+              ))}
 
               {/* Pagination */}
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', padding:'12px 20px', borderTop:'1px solid rgba(155,127,232,0.1)', gap:14 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#9b89c4' }}>
+              <div style={{ display:'flex',alignItems:'center',justifyContent:'flex-end',padding:'12px 24px',borderTop:`1px solid ${C.border}`,gap:16 }}>
+                <div style={{ display:'flex',alignItems:'center',gap:6,fontSize:12,color:C.secondary }}>
                   <span>Rows per page:</span>
-                  <select value={rowsPerPage} onChange={e=>{setRowsPerPage(+e.target.value);setPage(0)}}
-                    style={{ border:'1px solid rgba(155,127,232,0.2)', borderRadius:8, padding:'3px 8px', fontSize:12, color:'#2d1b69', background:'rgba(255,255,255,0.6)', outline:'none', cursor:'pointer' }}>
+                  <select className="rpp-select" value={rowsPerPage} onChange={e=>{setRowsPerPage(+e.target.value);setPage(0)}}>
                     {[5,10,25].map(n=><option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>
-                <span style={{ fontSize:12, color:'#9b89c4', minWidth:80, textAlign:'center' }}>
-                  {filteredRegs.length === 0 ? '0 results' : `${page*rowsPerPage+1}–${Math.min((page+1)*rowsPerPage,filteredRegs.length)} of ${filteredRegs.length}`}
+                <span style={{ fontSize:12,color:C.secondary,minWidth:80,textAlign:'center' }}>
+                  {filteredRegs.length===0?'0 results':`${page*rowsPerPage+1}–${Math.min((page+1)*rowsPerPage,filteredRegs.length)} of ${filteredRegs.length}`}
                 </span>
-                <div style={{ display:'flex', gap:4 }}>
+                <div style={{ display:'flex',gap:4 }}>
                   {[['|‹',0],['‹',page-1],['>',page+1],['>|',totalPages-1]].map(([icon,target],i)=>(
-                    <button key={i} onClick={()=>setPage(Math.max(0,Math.min(totalPages-1,target)))}
-                      disabled={target<0||target>=totalPages}
-                      style={{ width:28, height:28, borderRadius:8, border:'1px solid rgba(155,127,232,0.2)', background:'rgba(255,255,255,0.5)', cursor:'pointer', color:'#9b7fe8', fontSize:12, display:'flex', alignItems:'center', justifyContent:'center', opacity:target<0||target>=totalPages?0.35:1 }}>
-                      {icon}
-                    </button>
+                    <button key={i} className="pg-btn" onClick={()=>setPage(Math.max(0,Math.min(totalPages-1,target)))} disabled={target<0||target>=totalPages}>{icon}</button>
                   ))}
                 </div>
               </div>

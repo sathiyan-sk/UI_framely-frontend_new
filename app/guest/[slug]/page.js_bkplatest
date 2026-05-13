@@ -18,187 +18,12 @@ const ANIM = `
   @keyframes ripple{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.2);opacity:0}}
   @keyframes progressFill{from{width:0%}to{width:100%}}
   @keyframes zipBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
   @media(max-width:600px){
     .topbar-actions{flex-wrap:wrap;gap:6px!important}
     .photo-grid{grid-template-columns:repeat(2,1fr)!important}
     .lightbox-img{max-width:95vw!important;max-height:60vh!important}
   }
 `
-
-// ─── Event Expired Modal ──────────────────────────────────────────────────────
-function EventExpiredModal({ onClose }) {
-  const [visible, setVisible] = useState(false)
-  useEffect(() => { setTimeout(() => setVisible(true), 60) }, [])
-
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 400,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(13,13,26,0.88)', backdropFilter: 'blur(22px)',
-      fontFamily: "'Inter',system-ui,sans-serif", padding: '20px',
-    }}>
-      <style>{ANIM}</style>
-      <div style={{
-        background: 'rgba(255,255,255,0.97)', borderRadius: 28,
-        padding: '32px 28px', maxWidth: 420, width: '100%',
-        boxShadow: '0 32px 80px rgba(45,27,105,0.28)',
-        opacity: visible ? 1 : 0,
-        transform: visible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(20px)',
-        transition: 'all .35s cubic-bezier(.4,0,.2,1)',
-        textAlign: 'center',
-      }}>
-        <div style={{
-          width: 88, height: 88, borderRadius: '50%',
-          background: 'rgba(239,68,68,0.08)',
-          border: '2px solid rgba(239,68,68,0.2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 20px',
-          animation: 'float 3s ease-in-out infinite',
-        }}>
-          <span style={{ fontSize: 38 }}>⏰</span>
-        </div>
-
-        <div style={{ fontSize: 20, fontWeight: 800, color: '#2d1b69', marginBottom: 8, letterSpacing: '-.02em' }}>
-          Event Has Expired
-        </div>
-        <div style={{ fontSize: 13, color: '#7c6aaa', lineHeight: 1.7, marginBottom: 20 }}>
-          This event has ended and the photo gallery is no longer accessible.<br />
-          Please contact the photographer if you need your photos.
-        </div>
-
-        <div style={{
-          display: 'flex', alignItems: 'flex-start', gap: 10,
-          padding: '12px 14px',
-          background: 'rgba(239,68,68,0.06)',
-          border: '1px solid rgba(239,68,68,0.18)',
-          borderRadius: 14, marginBottom: 22, textAlign: 'left'
-        }}>
-          <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>📋</span>
-          <div style={{ fontSize: 12, color: '#7f1d1d', lineHeight: 1.6 }}>
-            Event galleries are available for a limited time after the event. Your photographer can share photos directly if needed.
-          </div>
-        </div>
-
-        <button onClick={onClose} style={{
-          width: '100%', padding: '14px', borderRadius: 16,
-          background: 'linear-gradient(135deg,#9b7fe8,#c084fc)',
-          color: '#fff', border: 'none', fontSize: 14, fontWeight: 700,
-          cursor: 'pointer', boxShadow: '0 6px 20px rgba(155,127,232,0.4)',
-          fontFamily: 'inherit',
-        }}>
-          Got it
-        </button>
-        <p style={{ marginTop: 12, fontSize: 11, color: '#c4b5fd', fontWeight: 500 }}>
-          🔒 Powered by Framely
-        </p>
-      </div>
-    </div>
-  )
-}
-
-// ─── Not Published Modal ──────────────────────────────────────────────────────
-function NotPublishedModal({ guestName, phone, email, onClose }) {
-  const [visible, setVisible] = useState(false)
-  useEffect(() => { setTimeout(() => setVisible(true), 60) }, [])
-
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 400,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(13,13,26,0.88)', backdropFilter: 'blur(22px)',
-      fontFamily: "'Inter',system-ui,sans-serif", padding: '20px',
-    }}>
-      <style>{ANIM}</style>
-      <div style={{
-        background: 'rgba(255,255,255,0.97)', borderRadius: 28,
-        padding: '32px 28px', maxWidth: 420, width: '100%',
-        boxShadow: '0 32px 80px rgba(45,27,105,0.28)',
-        opacity: visible ? 1 : 0,
-        transform: visible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(20px)',
-        transition: 'all .35s cubic-bezier(.4,0,.2,1)',
-        textAlign: 'center',
-      }}>
-        <div style={{ position: 'relative', width: 88, height: 88, margin: '0 auto 20px' }}>
-          <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '2px solid rgba(155,127,232,0.2)', animation: 'pulse 2.5s ease infinite' }} />
-          <div style={{
-            width: 88, height: 88, borderRadius: '50%',
-            background: 'linear-gradient(135deg,rgba(155,127,232,0.15),rgba(192,132,252,0.1))',
-            border: '2px solid rgba(155,127,232,0.25)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            animation: 'float 3s ease-in-out infinite',
-          }}>
-            <span style={{ fontSize: 38 }}>🔔</span>
-          </div>
-        </div>
-
-        <div style={{ fontSize: 20, fontWeight: 800, color: '#2d1b69', marginBottom: 8, letterSpacing: '-.02em' }}>
-          Event Not Published Yet
-        </div>
-        <div style={{ fontSize: 13, color: '#7c6aaa', lineHeight: 1.7, marginBottom: 20 }}>
-          Hi <strong style={{ color: '#2d1b69' }}>{guestName}</strong>! The event gallery isn't live yet.<br />
-          The photographer is still preparing your photos.
-        </div>
-
-        <div style={{
-          background: 'linear-gradient(135deg,rgba(155,127,232,0.08),rgba(192,132,252,0.05))',
-          border: '1.5px solid rgba(155,127,232,0.2)',
-          borderRadius: 18, padding: '18px 16px', marginBottom: 20,
-        }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#5b4a8a', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 12 }}>
-            We'll notify you when it's live
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'rgba(255,255,255,0.7)', borderRadius: 12, border: '1px solid rgba(155,127,232,0.1)' }}>
-              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 15 }}>📱</span>
-              </div>
-              <div style={{ textAlign: 'left', minWidth: 0 }}>
-                <div style={{ fontSize: 10, color: '#9b89c4', fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase' }}>SMS Notification</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#2d1b69', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>+91 {phone}</div>
-              </div>
-              <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
-                <div style={{ padding: '3px 8px', borderRadius: 20, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', fontSize: 10, fontWeight: 700, color: '#15803d' }}>✓ Registered</div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'rgba(255,255,255,0.7)', borderRadius: 12, border: '1px solid rgba(155,127,232,0.1)' }}>
-              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 15 }}>✉️</span>
-              </div>
-              <div style={{ textAlign: 'left', minWidth: 0 }}>
-                <div style={{ fontSize: 10, color: '#9b89c4', fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase' }}>Email Notification</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#2d1b69', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</div>
-              </div>
-              <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
-                <div style={{ padding: '3px 8px', borderRadius: 20, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', fontSize: 10, fontWeight: 700, color: '#15803d' }}>✓ Registered</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 14, marginBottom: 22, textAlign: 'left' }}>
-          <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>⏳</span>
-          <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.6 }}>
-            Once the photographer publishes the event, you'll receive an <strong>SMS and email</strong> with a direct link to your gallery.
-          </div>
-        </div>
-
-        <button onClick={onClose} style={{
-          width: '100%', padding: '14px', borderRadius: 16,
-          background: 'linear-gradient(135deg,#9b7fe8,#c084fc)',
-          color: '#fff', border: 'none', fontSize: 14, fontWeight: 700,
-          cursor: 'pointer', boxShadow: '0 6px 20px rgba(155,127,232,0.4)',
-          fontFamily: 'inherit',
-        }}>
-          Got it! I'll wait for the notification
-        </button>
-        <p style={{ marginTop: 12, fontSize: 11, color: '#c4b5fd', fontWeight: 500 }}>
-          🔒 Your details are saved securely · Powered by Framely
-        </p>
-      </div>
-    </div>
-  )
-}
 
 // ─── ZIP Download Modal ───────────────────────────────────────────────────────
 function ZipDownloadModal({ stage, total, onClose }) {
@@ -237,7 +62,9 @@ function ZipDownloadModal({ stage, total, onClose }) {
         </div>
         {stage === 'downloading' && (
           <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 12, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
-            <div style={{ fontSize: 12, color: '#15803d', fontWeight: 700 }}>✓ Download started! Look at your browser's download bar to track progress.</div>
+            <div style={{ fontSize: 12, color: '#15803d', fontWeight: 700 }}>
+              ✓ Download started! Look at your browser's download bar to track progress.
+            </div>
           </div>
         )}
         {stage !== 'done' && stage !== 'downloading' && (
@@ -265,7 +92,8 @@ function DownloadConfirmModal({ count, onDownload, onCancel }) {
         <div style={{ fontSize: 44, marginBottom: 14 }}>📁</div>
         <div style={{ fontSize: 17, fontWeight: 800, color: '#2d1b69', marginBottom: 8 }}>Download {count} Photos</div>
         <div style={{ fontSize: 13, color: '#9b89c4', marginBottom: 24, lineHeight: 1.6 }}>
-          Your photos will be downloaded as a ZIP file.<br />The download will start immediately in your browser.
+          Your photos will be downloaded as a ZIP file.<br />
+          The download will start immediately in your browser.
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <button onClick={onDownload} style={{ width: '100%', padding: '14px', borderRadius: 16, background: 'linear-gradient(135deg,#9b7fe8,#c084fc)', color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 20px rgba(155,127,232,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
@@ -296,54 +124,13 @@ function PremiumInput({ label, type = 'text', value, onChange, placeholder, icon
 }
 
 // ─── Page 1: Guest Landing ────────────────────────────────────────────────────
-function GuestLanding({ event, slug, onPublished, onNotPublished, onExpired }) {
-  const [name,    setName]    = useState('')
-  const [email,   setEmail]   = useState('')
-  const [phone,   setPhone]   = useState('')
+function GuestLanding({ event, onContinue }) {
+  const [name, setName]       = useState('')
+  const [email, setEmail]     = useState('')
+  const [phone, setPhone]     = useState('')
   const [privacy, setPrivacy] = useState(true)
   const [visible, setVisible] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
-
   useEffect(() => { setTimeout(() => setVisible(true), 80) }, [])
-
-  async function handleSubmit() {
-    if (!name || !email || !phone || !privacy) return
-    setLoading(true)
-    setError('')
-    const info = { name, email, phone }
-
-    try {
-      // Step 1 — save guest details regardless of publish state
-      await fetch(`${API_URL}/events/${slug}/register-guest`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(info),
-      }).catch(() => {}) // non-fatal
-
-      // Step 2 — check if event is published (and not expired)
-      const res = await fetch(`${API_URL}/events/guest/${slug}`)
-
-      if (res.ok) {
-        // Published and active → go to camera
-        onPublished(info)
-      } else if (res.status === 410) {
-        // Event has expired
-        onExpired(info)
-      } else if (res.status === 404) {
-        // Not published yet → show waiting modal
-        onNotPublished(info)
-      } else {
-        setError('Something went wrong. Please try again.')
-      }
-    } catch (err) {
-      setError('Network error. Please check your connection.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const canSubmit = name && email && phone && privacy && !loading
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg,#ddd6fe 0%,#e9d5ff 20%,#fbcfe8 50%,#fde68a 80%,#ddd6fe 100%)' }}>
@@ -363,8 +150,8 @@ function GuestLanding({ event, slug, onPublished, onNotPublished, onExpired }) {
           <p style={{ fontSize: 13, color: '#9b89c4', lineHeight: 1.7 }}>Enter your details and take a quick selfie<br />to instantly find all your photos</p>
         </div>
         <div style={{ background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', border: '1px solid rgba(255,255,255,0.85)', borderRadius: 24, padding: '24px 20px 20px', boxShadow: '0 12px 48px rgba(155,127,232,0.15), inset 0 1px 0 rgba(255,255,255,0.9)' }}>
-          <PremiumInput label="Your Name"     value={name}  onChange={e => setName(e.target.value)}  placeholder="Rakshan"        icon="👤" required />
-          <PremiumInput label="Email Address" type="email"  value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" icon="✉"  required />
+          <PremiumInput label="Your Name" value={name} onChange={e => setName(e.target.value)} placeholder="Rakshan" icon="👤" required />
+          <PremiumInput label="Email Address" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" icon="✉" required />
           <div style={{ position: 'relative', marginBottom: 16 }}>
             <div style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 6, zIndex: 2, pointerEvents: 'none' }}>
               <span style={{ fontSize: 18 }}>🇮🇳</span>
@@ -382,31 +169,9 @@ function GuestLanding({ event, slug, onPublished, onNotPublished, onExpired }) {
             </div>
             <span style={{ fontSize: 12, color: '#7c6aaa', lineHeight: 1.6 }}>I agree to the <span style={{ color: '#9b7fe8', fontWeight: 600 }}>Privacy Policy</span> and give my <span style={{ color: '#9b7fe8', fontWeight: 600 }}>Consent</span> for face recognition</span>
           </div>
-
-          {error && (
-            <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 12, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', fontSize: 12, color: '#dc2626', fontWeight: 600, textAlign: 'center' }}>
-              ⚠ {error}
-            </div>
-          )}
-
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            style={{
-              width: '100%', padding: '15px', borderRadius: 16, fontSize: 15, fontWeight: 700,
-              cursor: !canSubmit ? 'not-allowed' : 'pointer', border: 'none',
-              background: loading ? 'rgba(155,127,232,0.5)' : 'linear-gradient(135deg,#9b7fe8,#c084fc)',
-              color: '#fff', boxShadow: loading ? 'none' : '0 8px 28px rgba(155,127,232,0.45)',
-              transition: 'all .18s', opacity: !canSubmit && !loading ? 0.5 : 1,
-              fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            }}
-          >
-            {loading ? (
-              <>
-                <div style={{ width: 18, height: 18, border: '2.5px solid rgba(255,255,255,0.35)', borderTop: '2.5px solid #fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
-                Checking event status...
-              </>
-            ) : '📸 Continue to Camera'}
+          <button onClick={() => onContinue({ name, email, phone })} disabled={!name || !email || !phone || !privacy}
+            style={{ width: '100%', padding: '15px', borderRadius: 16, fontSize: 15, fontWeight: 700, cursor: (!name || !email || !phone || !privacy) ? 'not-allowed' : 'pointer', border: 'none', background: 'linear-gradient(135deg,#9b7fe8,#c084fc)', color: '#fff', boxShadow: '0 8px 28px rgba(155,127,232,0.45)', transition: 'all .18s', opacity: (!name || !email || !phone || !privacy) ? 0.5 : 1, fontFamily: 'inherit' }}>
+            📸 Continue to Camera
           </button>
         </div>
         <p style={{ textAlign: 'center', fontSize: 11, color: '#c4b5fd', marginTop: 14, fontWeight: 500 }}>🔒 Secure · Powered by Framely AI</p>
@@ -421,13 +186,13 @@ function CameraPage({ onCapture, onClose }) {
   const canvasRef   = useRef(null)
   const streamRef   = useRef(null)
   const mountedRef  = useRef(true)
-  const [ready,      setReady]      = useState(false)
-  const [countdown,  setCountdown]  = useState(null)
-  const [captured,   setCaptured]   = useState(null)
-  const [shutter,    setShutter]    = useState(false)
+  const [ready, setReady]           = useState(false)
+  const [countdown, setCountdown]   = useState(null)
+  const [captured, setCaptured]     = useState(null)
+  const [shutter, setShutter]       = useState(false)
   const [facingMode, setFacingMode] = useState('user')
-  const [visible,    setVisible]    = useState(false)
-  const [error,      setError]      = useState('')
+  const [visible, setVisible]       = useState(false)
+  const [error, setError]           = useState('')
 
   useEffect(() => {
     mountedRef.current = true
@@ -479,7 +244,7 @@ function CameraPage({ onCapture, onClose }) {
     setCaptured(canvas.toDataURL('image/jpeg', 0.9))
   }
 
-  function retake()  { setCaptured(null); setReady(false); startCamera() }
+  function retake() { setCaptured(null); setReady(false); startCamera() }
   function confirm() { canvasRef.current.toBlob(blob => onCapture(blob), 'image/jpeg', 0.9) }
 
   return (
@@ -542,8 +307,8 @@ function CameraPage({ onCapture, onClose }) {
           </>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, width: '100%' }}>
-            <button onClick={retake}   style={{ padding: '13px', borderRadius: 14, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>↺ Retake</button>
-            <button onClick={confirm}  style={{ padding: '13px', borderRadius: 14, background: 'linear-gradient(135deg,#9b7fe8,#c084fc)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 20px rgba(155,127,232,0.5)' }}>✓ Use This</button>
+            <button onClick={retake} style={{ padding: '13px', borderRadius: 14, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>↺ Retake</button>
+            <button onClick={confirm} style={{ padding: '13px', borderRadius: 14, background: 'linear-gradient(135deg,#9b7fe8,#c084fc)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 20px rgba(155,127,232,0.5)' }}>✓ Use This</button>
           </div>
         )}
       </div>
@@ -573,13 +338,13 @@ function ImageCard({ photo, index, selected, onSelect, onFullView, onDownload })
 
 // ─── Page 3: Gallery ──────────────────────────────────────────────────────────
 function GalleryPage({ photos, guestName, onFaceSearch, searching, slug, event }) {
-  const [selected,    setSelected]    = useState(new Set())
-  const [fullView,    setFullView]    = useState(null)
-  const [fullViewIdx, setFullViewIdx] = useState(0)
-  const [visible,     setVisible]     = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [zipStage,    setZipStage]    = useState(null)
-  const [zipTotal,    setZipTotal]    = useState(0)
+  const [selected, setSelected]               = useState(new Set())
+  const [fullView, setFullView]               = useState(null)
+  const [fullViewIdx, setFullViewIdx]         = useState(0)
+  const [visible, setVisible]                 = useState(false)
+  const [showConfirm, setShowConfirm]         = useState(false)
+  const [zipStage, setZipStage]               = useState(null)
+  const [zipTotal, setZipTotal]               = useState(0)
 
   useEffect(() => { setTimeout(() => setVisible(true), 80) }, [])
 
@@ -589,7 +354,7 @@ function GalleryPage({ photos, guestName, onFaceSearch, searching, slug, event }
 
   async function downloadOne(url, name) {
     const filename = name || url.split('/').pop() || 'photo.jpg'
-    const proxyUrl = `${API_URL}/search/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`
+    const proxyUrl = `${API_URL}/api/search/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`
     const a = document.createElement('a')
     a.href = proxyUrl; a.download = filename
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
@@ -602,24 +367,35 @@ function GalleryPage({ photos, guestName, onFaceSearch, searching, slug, event }
     const photoIds = Array.from(selected)
     setZipTotal(photoIds.length)
     setZipStage('collecting')
+
     try {
       await new Promise(r => setTimeout(r, 300))
       setZipStage('compressing')
-      const res = await fetch(`${API_URL}/search/${slug}/prepare-zip`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(photoIds)
+
+      // Step 1 — POST photo IDs to get a one-time secure download token
+      const res = await fetch(`${API_URL}/api/search/${slug}/prepare-zip`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(photoIds)
       })
-      if (res.status === 410) {
-        setZipStage(null)
-        alert('This event has expired. Downloads are no longer available.')
-        return
-      }
       if (!res.ok) throw new Error(`Server error: ${res.status}`)
       const { token } = await res.json()
+
       setZipStage('downloading')
-      window.location.href = `${API_URL}/search/${slug}/download-zip?token=${encodeURIComponent(token)}`
+
+      // Step 2 — Navigate browser directly to the GET download URL
+      // This is the critical difference from fetch()+blob():
+      // Browser treats window.location.href as a file download navigation
+      // The native browser download bar appears IMMEDIATELY
+      // Bytes stream from server to disk — no RAM buffering at all
+      const downloadUrl = `${API_URL}/api/search/${slug}/download-zip?token=${encodeURIComponent(token)}`
+      window.location.href = downloadUrl
+
+      // Give the browser time to register the download then show done
       await new Promise(r => setTimeout(r, 2500))
       setZipStage('done')
       clearSel()
+
     } catch (error) {
       console.error('Download error:', error)
       setZipStage(null)
@@ -636,13 +412,30 @@ function GalleryPage({ photos, guestName, onFaceSearch, searching, slug, event }
       <style>{ANIM}</style>
       <div style={{ position: 'fixed', width: 300, height: 300, borderRadius: '50%', background: '#c4b5fd', filter: 'blur(90px)', opacity: .22, top: -80, left: -60, pointerEvents: 'none', zIndex: 0 }} />
       <div style={{ position: 'fixed', width: 280, height: 280, borderRadius: '50%', background: '#fbcfe8', filter: 'blur(80px)', opacity: .18, bottom: -60, right: -40, pointerEvents: 'none', zIndex: 0 }} />
-      {showConfirm && <DownloadConfirmModal count={selected.size} onDownload={performZipDownload} onCancel={() => setShowConfirm(false)} />}
-      {zipStage && <ZipDownloadModal stage={zipStage} total={zipTotal} onClose={() => setZipStage(null)} />}
+
+      {showConfirm && (
+        <DownloadConfirmModal
+          count={selected.size}
+          onDownload={performZipDownload}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
+      {zipStage && (
+        <ZipDownloadModal
+          stage={zipStage}
+          total={zipTotal}
+          onClose={() => setZipStage(null)}
+        />
+      )}
+
       <div style={{ position: 'relative', zIndex: 1, opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(20px)', transition: 'all .5s cubic-bezier(.4,0,.2,1)' }}>
+
+        {/* ── Sticky topbar ── */}
         <div style={{ position: 'sticky', top: 0, zIndex: 20, background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', borderBottom: '1px solid rgba(155,127,232,0.1)', padding: '0 12px' }}>
           <div style={{ maxWidth: 1200, margin: '0 auto', minHeight: 54, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: '8px 0' }}>
             <div style={{ width: 30, height: 30, borderRadius: 10, background: 'linear-gradient(135deg,#9b7fe8,#c084fc)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 13, flexShrink: 0 }}>P</div>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#2d1b69', flex: 1, minWidth: 60 }}>Framely</span>
+
             {selected.size > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'rgba(155,127,232,0.1)', border: '1px solid rgba(155,127,232,0.2)', borderRadius: 20, animation: 'zoomIn .2s ease', flexShrink: 0 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed' }}>{selected.size} selected</span>
@@ -650,12 +443,18 @@ function GalleryPage({ photos, guestName, onFaceSearch, searching, slug, event }
                 <button onClick={clearSel} style={{ padding: '3px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.6)', color: '#9b89c4', border: '1px solid rgba(155,127,232,0.2)', fontSize: 11, cursor: 'pointer' }}>✕</button>
               </div>
             )}
-            <button onClick={photos.length > 0 && selected.size === photos.length ? clearSel : selectAll} style={{ padding: '5px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(155,127,232,0.2)', color: '#7c3aed', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+
+            <button onClick={photos.length > 0 && selected.size === photos.length ? clearSel : selectAll}
+              style={{ padding: '5px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(155,127,232,0.2)', color: '#7c3aed', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
               {selected.size === photos.length && photos.length > 0 ? 'Deselect' : 'Select All'}
             </button>
-            <button onClick={onFaceSearch} style={{ padding: '6px 12px', borderRadius: 10, background: 'linear-gradient(135deg,#9b7fe8,#c084fc)', color: '#fff', border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>🔍 Search</button>
+            <button onClick={onFaceSearch}
+              style={{ padding: '6px 12px', borderRadius: 10, background: 'linear-gradient(135deg,#9b7fe8,#c084fc)', color: '#fff', border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+              🔍 Search
+            </button>
           </div>
         </div>
+
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 12px' }}>
           <div style={{ textAlign: 'center', marginBottom: 20 }}>
             {searching ? (
@@ -674,6 +473,7 @@ function GalleryPage({ photos, guestName, onFaceSearch, searching, slug, event }
               </>
             )}
           </div>
+
           {!searching && photos.length === 0 && (
             <div style={{ textAlign: 'center', padding: '48px 20px' }}>
               <div style={{ width: 90, height: 90, borderRadius: 24, background: 'rgba(155,127,232,0.1)', border: '1px solid rgba(155,127,232,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, margin: '0 auto 16px', animation: 'pulse 3s ease-in-out infinite' }}>📷</div>
@@ -682,6 +482,7 @@ function GalleryPage({ photos, guestName, onFaceSearch, searching, slug, event }
               <button onClick={onFaceSearch} style={{ padding: '12px 24px', borderRadius: 14, background: 'linear-gradient(135deg,#9b7fe8,#c084fc)', color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 20px rgba(155,127,232,0.4)' }}>🔍 Try Again</button>
             </div>
           )}
+
           {photos.length > 0 && (
             <div className="photo-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 8 }}>
               {photos.map((photo, i) => (
@@ -695,6 +496,8 @@ function GalleryPage({ photos, guestName, onFaceSearch, searching, slug, event }
           )}
         </div>
       </div>
+
+      {/* ── Lightbox ── */}
       {fullView && (
         <div onClick={() => setFullView(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(8,8,18,0.97)', backdropFilter: 'blur(28px)', zIndex: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px', animation: 'zoomIn .2s ease' }}>
           <button onClick={() => setFullView(null)} style={{ position: 'absolute', top: 16, right: 16, width: 38, height: 38, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>✕</button>
@@ -719,35 +522,27 @@ function GalleryPage({ photos, guestName, onFaceSearch, searching, slug, event }
 // ─── Main orchestrator ────────────────────────────────────────────────────────
 function GuestPageInner() {
   const { slug }  = useParams()
-  const [event,        setEvent]        = useState(null)
-  const [searching,    setSearching]    = useState(false)
-  const [page,         setPage]         = useState('landing')
-  const [guestInfo,    setGuestInfo]    = useState(null)
-  const [photos,       setPhotos]       = useState([])
-  const [notPublished, setNotPublished] = useState(null)
-  const [expired,      setExpired]      = useState(false)
+  const [event, setEvent]         = useState(null)
+  const [searching, setSearching] = useState(false)
+  const [page, setPage]           = useState('landing')
+  const [guestInfo, setGuestInfo] = useState(null)
+  const [photos, setPhotos]       = useState([])
 
-  // Always start at landing — never restore page from session.
-  // Only restore non-sensitive guest info and photos.
   useEffect(() => {
+    const savedPage   = sessionStorage.getItem(`owl_page_${slug}`)
     const savedGuest  = sessionStorage.getItem(`owl_guest_${slug}`)
     const savedPhotos = sessionStorage.getItem(`owl_photos_${slug}`)
-    if (savedGuest)  try { setGuestInfo(JSON.parse(savedGuest)) }  catch {}
-    if (savedPhotos) try { setPhotos(JSON.parse(savedPhotos)) }    catch {}
+    if (savedPage)   setPage(savedPage)
+    if (savedGuest)  try { setGuestInfo(JSON.parse(savedGuest)) }  catch (e) {}
+    if (savedPhotos) try { setPhotos(JSON.parse(savedPhotos)) }    catch (e) {}
   }, [slug])
 
-  function persistPage(p)   { setPage(p) }
-  function persistGuest(g)  { sessionStorage.setItem(`owl_guest_${slug}`, JSON.stringify(g)); setGuestInfo(g) }
+  function persistPage(p)   { sessionStorage.setItem(`owl_page_${slug}`, p);                  setPage(p) }
+  function persistGuest(g)  { sessionStorage.setItem(`owl_guest_${slug}`, JSON.stringify(g));  setGuestInfo(g) }
   function persistPhotos(p) { sessionStorage.setItem(`owl_photos_${slug}`, JSON.stringify(p)); setPhotos(p) }
 
-  // Clear session data when event is expired so stale photos are not shown
-  function clearSession() {
-    sessionStorage.removeItem(`owl_guest_${slug}`)
-    sessionStorage.removeItem(`owl_photos_${slug}`)
-  }
-
   useEffect(() => {
-    getEventBySlug(slug).then(d => { if (d?.name) setEvent(d) }).catch(() => {})
+    getEventBySlug(slug).then(d => { if (d && d.name) setEvent(d) }).catch(() => {})
   }, [slug])
 
   async function handleCapture(blob) {
@@ -755,87 +550,15 @@ function GuestPageInner() {
     persistPage('gallery')
     try {
       const file = new File([blob], 'selfie.jpg', { type: 'image/jpeg' })
-      const res  = await fetch(`${API_URL}/search/${slug}`, {
-        method: 'POST',
-        body: (() => { const fd = new FormData(); fd.append('file', file); return fd })(),
-      })
-      if (res.status === 410) {
-        // Event expired mid-session
-        clearSession()
-        setExpired(true)
-        persistPage('landing')
-        setSearching(false)
-        return
-      }
-      if (!res.ok) throw new Error(`Search failed: ${res.status}`)
-      const data = await res.json()
+      const data = await searchFaces(slug, file)
       if (data.matches) persistPhotos(data.matches)
-    } catch (e) {
-      console.error('Face search error:', e)
-    }
+    } catch (e) { console.error(e) }
     setSearching(false)
   }
 
-  function handlePublished(info) {
-    persistGuest(info)
-    persistPage('camera')
-  }
-
-  function handleNotPublished(info) {
-    persistGuest(info)
-    setNotPublished(info)
-  }
-
-  function handleExpired(info) {
-    persistGuest(info)
-    clearSession()
-    setExpired(true)
-  }
-
-  return (
-    <>
-      {/* Expired modal — overlays landing page */}
-      {expired && (
-        <EventExpiredModal onClose={() => setExpired(false)} />
-      )}
-
-      {/* Not-published modal — overlays landing page */}
-      {notPublished && !expired && (
-        <NotPublishedModal
-          guestName={notPublished.name}
-          phone={notPublished.phone}
-          email={notPublished.email}
-          onClose={() => setNotPublished(null)}
-        />
-      )}
-
-      {page === 'landing' && (
-        <GuestLanding
-          event={event}
-          slug={slug}
-          onPublished={handlePublished}
-          onNotPublished={handleNotPublished}
-          onExpired={handleExpired}
-        />
-      )}
-      {page === 'camera' && (
-        <CameraPage
-          onCapture={handleCapture}
-          onClose={() => persistPage('landing')}
-        />
-      )}
-      {page === 'gallery' && (
-        <GalleryPage
-          photos={photos}
-          guestName={guestInfo?.name || 'Guest'}
-          searching={searching}
-          onFaceSearch={() => persistPage('camera')}
-          slug={slug}
-          event={event}
-        />
-      )}
-    </>
-  )
+  if (page === 'landing') return <GuestLanding event={event} onContinue={info => { persistGuest(info); persistPage('camera') }} />
+  if (page === 'camera')  return <CameraPage onCapture={handleCapture} onClose={() => persistPage('landing')} />
+  return <GalleryPage photos={photos} guestName={guestInfo?.name || 'Guest'} searching={searching} onFaceSearch={() => persistPage('camera')} slug={slug} event={event} />
 }
 
 export default function GuestPage() {
