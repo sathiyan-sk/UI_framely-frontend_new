@@ -393,17 +393,18 @@ export default function SettingsPage() {
   return (
     <div className="st-root">
       <style>{css}</style>
+      <div className="db-page-container">
 
       {/* Page heading */}
       <div style={{ marginBottom:28 }}>
-        <h1 style={{ fontFamily:"'DM Serif Display',Georgia,serif", fontSize:36, fontWeight:400, letterSpacing:'-0.02em', margin:'0 0 6px', lineHeight:1.1 }}>Settings</h1>
+          <h1 style={{ fontFamily:"'DM Serif Display',Georgia,serif", fontSize:'clamp(28px, 5vw, 36px)', fontWeight:400, letterSpacing:'-0.02em', margin:'0 0 6px', lineHeight:1.1 }}>Settings</h1>
         <p style={{ fontSize:14, color:T.secondary, margin:0 }}>Manage your account, subscription and branding</p>
       </div>
 
-      <div style={{ display:'flex', gap:20, alignItems:'flex-start' }}>
+        <div className="st-settings-layout">
 
         {/* ── Left nav ── */}
-        <div style={{ width:192, flexShrink:0 }}>
+          <div className="st-sidebar-nav">
           <div className="st-card" style={{ padding:6 }}>
             {NAV_ITEMS.map(item => (
               <button key={item.id} className={`st-nav-btn${tab===item.id?' active':''}`} onClick={()=>setTab(item.id)}>
@@ -416,8 +417,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ── Content ── */}
-        <div style={{ flex:1, minWidth:0 }}>
-
+          <div className="st-content-area">
           {/* ════════ PROFILE ════════ */}
           {tab==='profile' && (
             <div className="fade-up" style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -446,8 +446,7 @@ export default function SettingsPage() {
               </div>
 
               {/* 2-col form */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-
+              <div className="db-settings-2col">
                 {/* Personal Details */}
                 <div className="st-card" style={{ padding:'22px 24px' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:20 }}>
@@ -679,7 +678,7 @@ export default function SettingsPage() {
               </div>
 
               {/* Plan cards */}
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
+                <div className="db-plans-grid">
                 {PLANS.map(plan => {
                   const isCurrent = planData?.current_plan === plan.key
                   const isPopular = plan.badge
@@ -747,7 +746,8 @@ export default function SettingsPage() {
             </div>
           )}
 
-        </div>
+        </div> 
+      </div>
       </div>
     </div>
   )

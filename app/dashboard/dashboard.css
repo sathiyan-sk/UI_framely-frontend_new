@@ -264,6 +264,8 @@ html, body {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
+    margin-bottom: 28px;
+  width: 100%;
 }
 
 /* Settings - 2 column form grid */
@@ -271,6 +273,8 @@ html, body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+    width: 100%;
+
 }
 
 /* Settings - plan cards 3 column */
@@ -285,6 +289,41 @@ html, body {
   padding: clamp(24px, 5vw, 44px);
   max-width: 1280px;
   margin: 0 auto;
+   width: 100%;
+  box-sizing: border-box;
+}
+
+/* Enhanced page header responsiveness */
+.db-page-header {
+  margin-bottom: clamp(20px, 3vw, 32px);
+}
+
+/* Search input responsive */
+.er-search {
+  width: 100%;
+  max-width: 220px;
+  min-width: 180px;
+}
+
+/* Settings page layout responsiveness */
+.st-root {
+  width: 100%;
+}
+
+.st-settings-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.st-sidebar-nav {
+  width: 192px;
+  flex-shrink: 0;
+}
+
+.st-content-area {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ─────────────────────────────────────────────────────────────────────
@@ -296,28 +335,55 @@ html, body {
   /* Events: 2 → 1 column */
   .db-events-grid {
     grid-template-columns: 1fr;
+    gap: 20px;
   }
 
   /* Media: 5 → 3 columns */
   .db-media-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
   }
 
   /* Analytics: 4 → 2 columns */
   .db-analytics-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
   }
 
   /* Settings: 2 → 1 column */
   .db-settings-2col {
     grid-template-columns: 1fr;
+    gap: 20px;
   }
 
-  /* Plans: 3 → 1 column */
+  /* Plans: 3 → 2 columns on tablet */
   .db-plans-grid {
-    grid-template-columns: 1fr;
-    max-width: 400px;
-    margin: 0 auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  /* Page container tighter padding */
+  .db-page-container {
+    padding: clamp(20px, 4vw, 32px);
+  }
+
+  /* Search full width on tablet */
+  .er-search {
+    max-width: 100%;
+    flex: 1;
+  }
+  
+  /* Settings page: stack sidebar on tablet */
+  .st-settings-layout {
+    flex-direction: column;
+  }
+
+  .st-sidebar-nav {
+    width: 100%;
+  }
+
+  .st-content-area {
+    width: 100%;
   }
 }
 
@@ -326,10 +392,84 @@ html, body {
   /* Media: 3 → 2 columns */
   .db-media-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   /* Analytics: 2 → 1 column */
   .db-analytics-metrics {
     grid-template-columns: 1fr;
+        gap: 14px;
+  }
+
+  /* Plans: 2 → 1 column on mobile */
+  .db-plans-grid {
+    grid-template-columns: 1fr;
+    max-width: 100%;
+    gap: 14px;
+  }
+
+  /* Settings card full width */
+  .db-settings-2col {
+    gap: 16px;
+  }
+
+  /* Events grid tighter spacing */
+  .db-events-grid {
+    gap: 16px;
+  }
+
+  /* Page container mobile padding */
+  .db-page-container {
+    padding: 16px;
+  }
+
+  /* Buttons full width on mobile */
+  .db-page-header-actions {
+    width: 100%;
+  }
+
+  .db-page-header-actions > * {
+    flex: 1;
+  }
+
+  /* Search input mobile */
+  .er-search {
+    min-width: 0;
+  }
+
+  /* Plans: 2 → 1 column on mobile */
+  .db-plans-grid {
+    grid-template-columns: 1fr;
+    max-width: 100%;
+    gap: 14px;
+  }
+
+  /* Settings card full width */
+  .db-settings-2col {
+    gap: 16px;
+  }
+
+  /* Events grid tighter spacing */
+  .db-events-grid {
+    gap: 16px;
+  }
+
+  /* Page container mobile padding */
+  .db-page-container {
+    padding: 16px;
+  }
+
+  /* Buttons full width on mobile */
+  .db-page-header-actions {
+    width: 100%;
+  }
+
+  .db-page-header-actions > * {
+    flex: 1;
+  }
+
+  /* Search input mobile */
+  .er-search {
+    min-width: 0;
   }
 }

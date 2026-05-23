@@ -469,6 +469,7 @@ export default function EventsPage() {
 
         {/* Header */}
         <div className="db-page-header">
+          <div>
           <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>
             Workspace · Events
           </div>
@@ -495,7 +496,7 @@ export default function EventsPage() {
                 New event
               </button>
             </div>
-          </div>
+        
         </div>
 
         {/* Tabs */}
@@ -530,7 +531,7 @@ export default function EventsPage() {
           </div>
 
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 24 }}>
+          <div className="db-events-grid">
             {filtered.map((ev, i) => (
               <EventCard
                 key={ev.id}

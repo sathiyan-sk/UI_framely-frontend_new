@@ -440,7 +440,7 @@ export default function AnalyticsPage() {
             </p>
 
             {/* Metric cards */}
-            <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:18,marginBottom:28 }}>
+            <div className="db-analytics-metrics">
               {METRIC_DEFS.map((def, idx) => (
                 <MetricCard key={def.key} def={def} value={metricValues[def.key]} idx={idx} />
               ))}
