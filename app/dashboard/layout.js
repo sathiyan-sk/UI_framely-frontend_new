@@ -110,7 +110,6 @@ export default function DashboardLayout({ children }) {
       <div
         className="db-sidebar"
         style={{
-        width: 200,
         flexShrink: 0,
         background: '#fff',
         borderRight: '1px solid #e5e5e5',
@@ -268,15 +267,8 @@ export default function DashboardLayout({ children }) {
         style={{
         background: '#f5f5f5',
       }}>
-        {/*
-          Source padding: '32px 44px 60px'
-          Now fluid via dashboard.css → .db-main-inner uses clamp() values
-        */}
-        <div
-          className="db-main-inner"
-          style={{
-          boxSizing: 'border-box',
-        }}>
+        {/* Padding managed by CSS custom properties via .db-main-inner */}
+        <div className="db-main-inner">
           {children}
         </div>
       </div>

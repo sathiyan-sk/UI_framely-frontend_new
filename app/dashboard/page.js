@@ -48,9 +48,12 @@ function Card({ children, style, span, rowSpan }) {
       data-span={span || undefined}
       data-rowspan={rowSpan || undefined}
       style={{
-      border: `1px solid ${T.line}`, borderRadius: 14, background: T.bg,
-      padding: 20, gridColumn: span ? `span ${span}` : undefined,
-      gridRow: rowSpan ? `span ${rowSpan}` : undefined, minWidth: 0, ...style,
+      border: `1px solid ${T.line}`, 
+      borderRadius: 14, 
+      background: T.bg,
+      padding: 20, 
+      minWidth: 0, 
+      ...style,
     }}>
       {children}
     </div>
@@ -387,14 +390,14 @@ export default function DashboardHome() {
     <div style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
 
       {/* ── Header ── */}
-      <div className="db-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
+      <div className="db-page-header">
         <div>
           <div style={{ fontSize: 11, color: T.inkMute, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 500, marginBottom: 6 }}>Dashboard</div>
-          <h1 className="db-hello-title" style={{ fontFamily: T.serif, fontSize: 36, margin: 0, letterSpacing: '-0.015em', fontWeight: 400, color: T.ink }}>
+          <h1 className="db-hello-title" style={{ fontFamily: T.serif, margin: 0, letterSpacing: '-0.015em', fontWeight: 400, color: T.ink }}>
             Hey <em style={{ fontStyle: 'italic' }}>{userName || '…'}</em>, here's today.
           </h1>
         </div>
-        <div className="db-page-header-actions" style={{ display: 'flex', gap: 10 }}>
+        <div className="db-page-header-actions">
           <button
             onClick={() => router.push('/dashboard/media')}
             style={{ padding: '8px 18px', border: `1px solid ${T.line}`, borderRadius: 8, background: T.bg, fontSize: 13, color: T.inkSoft, cursor: 'pointer', fontWeight: 500, fontFamily: 'inherit' }}
@@ -407,7 +410,7 @@ export default function DashboardHome() {
       </div>
 
       {/* ── Main grid ── */}
-      <div className="db-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+      <div className="db-grid">
         {/* 4 stat cards */}
         {statCards.map((c, i) => (
           <Card key={i}>
@@ -536,7 +539,7 @@ export default function DashboardHome() {
           </div>
 
           {loading ? (
-            <div className="db-thumb-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+            <div className="db-thumb-grid">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} style={{ aspectRatio: '1', borderRadius: 6, background: T.bgSunk, animation: 'pulse 1.4s ease-in-out infinite' }} />
               ))}
@@ -544,7 +547,7 @@ export default function DashboardHome() {
           ) : recentPhotos.length === 0 ? (
             // ── No photos yet — hatched placeholders + upload nudge ──
             <div>
-              <div className="db-thumb-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginBottom: 12 }}>
+              <div className="db-thumb-grid" style={{ marginBottom: 12 }}>
                 {UPLOAD_LABELS.map(label => (
                   <Placeholder key={label} aspect="1 / 1" label={label} radius={6} />
                 ))}
@@ -563,8 +566,7 @@ export default function DashboardHome() {
             </div>
           ) : (
             // ── Real photos — fill remaining slots with placeholders ──
-            <div className="db-thumb-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>              {UPLOAD_LABELS.map((label, i) => (
-                recentPhotos[i] ? (
+            <div className="db-thumb-grid">              {UPLOAD_LABELS.map((label, i) => (                recentPhotos[i] ? (
                   <div key={label} style={{ aspectRatio: '1', borderRadius: 6, overflow: 'hidden', position: 'relative', border: `1px solid ${T.line}` }}>
                     <img
                       src={recentPhotos[i].thumb_url || recentPhotos[i].url}
@@ -642,8 +644,7 @@ export default function DashboardHome() {
                   {copied ? '✓ Copied!' : 'Copy'}
                 </button>
               </div>
-              <div className="db-qr-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>                <button
-                  onClick={() => { const c = document.querySelector('canvas'); if (c) { const a = document.createElement('a'); a.download = `qr-${currentEvent?.slug}.png`; a.href = c.toDataURL(); a.click() } }}
+              <div className="db-qr-row">                <button                  onClick={() => { const c = document.querySelector('canvas'); if (c) { const a = document.createElement('a'); a.download = `qr-${currentEvent?.slug}.png`; a.href = c.toDataURL(); a.click() } }}
                   style={{ padding: '7px 0', borderRadius: 7, background: T.ink, color: '#fff', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
                 >
                   <IconDownload size={11} /> Download
