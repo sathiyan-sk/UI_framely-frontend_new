@@ -465,16 +465,14 @@ export default function EventsPage() {
     <div className="er">
       <style>{css}</style>
 
-      <div style={{ padding: '40px 44px 64px', maxWidth: 1280, margin: '0 auto' }}>
+      <div className="db-page-container">
 
         {/* Header */}
-        <div style={{ marginBottom: 32 }}>
+        <div className="db-page-header">
           <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>
             Workspace · Events
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-            <div>
-              <h1 style={{ fontFamily: 'var(--serif)', fontSize: 48, fontWeight: 400, letterSpacing: '-0.02em', margin: '0 0 8px', lineHeight: 1.05 }}>
+              <h1 style={{ fontFamily: 'var(--serif)', fontSize: 'clamp(32px, 5vw, 48px)', fontWeight: 400, letterSpacing: '-0.02em', margin: '0 0 8px', lineHeight: 1.05 }}>
                 Your <em style={{ fontStyle: 'italic' }}>events</em>
               </h1>
               <p style={{ fontSize: 14, color: 'var(--ink-mute)', margin: 0, maxWidth: 480, lineHeight: 1.55 }}>
@@ -482,7 +480,7 @@ export default function EventsPage() {
                 {events.length > 0 ? ' Manage covers, galleries, photo sales, and guest access.' : ''}
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
+          <div className="db-page-header-actions">
               <div className="er-search">
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ color: 'var(--ink-mute)', flexShrink: 0 }}>
                   <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.4" />
@@ -511,7 +509,7 @@ export default function EventsPage() {
 
         {/* Content */}
         {loading ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 24 }}>
+          <div className="db-events-grid">
             {[1, 2, 3, 4].map(i => <SkeletonCard key={i} />)}
           </div>
 
