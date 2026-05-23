@@ -98,7 +98,7 @@ export default function LandingPage() {
                 Sign In
               </button>
               <button onClick={()=>router.push('/register')}
-                style={{ padding:'9px 22px', borderRadius:50, background:'linear-gradient(135deg,#9b7fe8,#c084fc)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer', boxShadow:'0 4px 14px rgba(155,127,232,0.4)' }}>
+                style={{ padding:'9px 22px', borderRadius:50, background:'#3bb1bc', color:'#d7df5e', border:'none', fontSize:14, fontWeight:700, cursor:'pointer', boxShadow:'0 4px 14px rgba(155,127,232,0.4)' }}>
                 Get Started Free
               </button>
             </div>
@@ -203,7 +203,7 @@ export default function LandingPage() {
             <div style={{ display:'flex', gap:8, justifyContent:'center', flexWrap:'wrap', marginBottom:32 }}>
               {Object.keys(useCases).map(k=>(
                 <button key={k} onClick={()=>setActiveUseCase(k)}
-                  style={{ padding:'10px 24px', borderRadius:50, fontSize:13, fontWeight:600, cursor:'pointer', border:'none', background:activeUseCase===k?'linear-gradient(135deg,#9b7fe8,#c084fc)':'rgba(255,255,255,0.55)', color:activeUseCase===k?'#fff':'#7c6aaa', boxShadow:activeUseCase===k?'0 4px 16px rgba(155,127,232,0.4)':'none', transition:'all .2s', backdropFilter:'blur(10px)' }}>
+                  style={{ padding:'10px 24px', borderRadius:50, fontSize:13, fontWeight:600, cursor:'pointer', border:'none', background:activeUseCase===k?'linear-gradient(135deg,#9b7fe8,#c084fc)':'rgba(255,255,255,0.55)', color:activeUseCase===k?'#fff':'#50c66f', boxShadow:activeUseCase===k?'0 4px 16px rgba(155,127,232,0.4)':'none', transition:'all .2s', backdropFilter:'blur(10px)' }}>
                   {k.charAt(0).toUpperCase()+k.slice(1)}
                 </button>
               ))}
@@ -328,7 +328,7 @@ export default function LandingPage() {
               <p style={{ fontSize:16, color:'#7c6aaa', maxWidth:520, margin:'0 auto 32px', lineHeight:1.75 }}>Join photographers across India delivering incredible photo experiences. Start your free trial today — no credit card required.</p>
               <div style={{ display:'flex', gap:14, justifyContent:'center', flexWrap:'wrap' }}>
                 <button onClick={()=>router.push('/register')}
-                  style={{ padding:'15px 34px', borderRadius:50, background:'linear-gradient(135deg,#9b7fe8,#c084fc)', color:'#fff', border:'none', fontSize:16, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 24px rgba(155,127,232,0.4)' }}>
+                  style={{ padding:'15px 34px', borderRadius:50, background:'#6ad672', color:'#fff', border:'none', fontSize:16, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 24px rgba(155,127,232,0.4)' }}>
                   Start Free Trial →
                 </button>
                 <button style={{ padding:'15px 34px', borderRadius:50, background:'rgba(255,255,255,0.6)', backdropFilter:'blur(10px)', border:'1px solid rgba(255,255,255,0.85)', color:'#2d1b69', fontSize:16, fontWeight:600, cursor:'pointer' }}>

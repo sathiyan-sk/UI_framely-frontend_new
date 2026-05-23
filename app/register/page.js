@@ -42,9 +42,9 @@ function RegisterInner() {
     setLoading(false)
   }
 
-  function handleGoogleLogin() {
-    window.location.href = `${API_URL}/auth/google`
-  }
+function handleGoogleLogin() {
+  window.location.href = `${API_URL}/auth/google?frontend_redirect=${encodeURIComponent(window.location.origin)}`
+}
 
   const strength = password.length === 0 ? 0 : password.length < 6 ? 1 : password.length < 10 ? 2 : 3
   const strengthLabel = ['', 'Weak', 'Good', 'Strong']
