@@ -31,12 +31,29 @@ const css = `
   }
   .an-root * { box-sizing: border-box; }
 
+  /* Responsive container */
+
+  .an-container {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
   /* Topbar */
   .an-topbar {
     padding: 14px 36px;
     border-bottom: 1px solid ${C.border};
     background: ${C.surface};
     display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  @media (max-width: 640px) {
+    .an-topbar {
+      padding: 12px 16px;
+      flex-direction: column;
+      align-items: flex-start;
+    }
   }
 
   /* Underline tabs */
@@ -155,8 +172,334 @@ const css = `
   .fade-up { animation: fadeUp 280ms ease; }
 
   @keyframes pulse3 { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.5; transform:scale(1.4); } }
+    
+  /* ============ RESPONSIVE STYLES ============ */
+  
+  /* Metric cards - 4 columns on desktop */
+  .an-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    margin-bottom: 28px;
+  }
+  
+  /* Registrations table - desktop view */
+  .an-table-desktop {
+    display: block;
+  }
+  
+  .an-table-mobile {
+    display: none;
+  }
+  
+  /* Registrations table header */
+  .an-reg-table-header {
+    display: grid;
+    grid-template-columns: 120px 1fr 1fr 150px 1fr 90px 110px;
+    gap: 0;
+    background: ${C.primary};
+    padding: 12px 24px;
+  }
+  
+  /* Registrations table row */
+  .an-reg-table-row {
+    display: grid;
+    grid-template-columns: 120px 1fr 1fr 150px 1fr 90px 110px;
+    gap: 0;
+    padding: 13px 24px;
+    border-bottom: 1px solid ${C.borderLight};
+    transition: background 140ms;
+  }
+  
+  /* Summary strip - 3 columns */
+  .an-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  
+  /* Tablet styles - 1024px and below */
+  @media (max-width: 1024px) {
+    .an-topbar {
+      padding: 14px 24px;
+    }
+    
+    /* Metric cards: 4 → 2 columns */
+    .an-metrics-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    
+    /* Summary strip: 3 → 2 columns */
+    .an-summary-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    
+    /* Table: switch to card layout */
+    .an-table-desktop {
+      display: none;
+    }
+    
+    .an-table-mobile {
+      display: block;
+    }
+    
+    /* Mobile card for each registration */
+    .an-reg-card {
+      background: ${C.surface};
+      border: 1px solid ${C.border};
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: box-shadow 140ms;
+    }
+    
+    .an-reg-card:hover {
+      box-shadow: 0 4px 12px rgba(26,24,20,0.08);
+    }
+    
+    .an-reg-card-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+      gap: 12px;
+    }
+    
+    .an-reg-card-row:last-child {
+      margin-bottom: 0;
+    }
+    
+    .an-reg-card-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: ${C.secondary};
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: 'DM Mono', monospace;
+      margin-bottom: 4px;
+    }
+    
+    .an-reg-card-value {
+      font-size: 13px;
+      color: ${C.primary};
+      word-break: break-word;
+    }
+  }
+  
+  /* Mobile styles - 640px and below */
+  @media (max-width: 640px) {
+    /* Content padding */
+    .an-root > div:last-child {
+      padding: 24px 16px !important;
+    }
+    
+    .an-topbar {
+      padding: 12px 16px;
+    }
+    
+    /* Metric cards: 2 → 1 column */
+    .an-metrics-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    /* Summary strip: 2 → 1 column */
+    .an-summary-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    /* Search and export row */
+    .an-search-row {
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .an-search {
+      width: 100% !important;
+    }
+    
+    .an-btn-primary {
+      width: 100%;
+      justify-content: center;
+    }
+    
+    /* Tabs: allow horizontal scroll */
+    .an-tabs {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    
+    .an-tabs::-webkit-scrollbar {
+      display: none;
+    }
+  }
 `
 
+  /* ============ RESPONSIVE STYLES ============ */
+  
+  /* Metric cards - 4 columns on desktop */
+  .an-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    margin-bottom: 28px;
+  }
+  
+  /* Registrations table - desktop view */
+  .an-table-desktop {
+    display: block;
+  }
+  
+  .an-table-mobile {
+    display: none;
+  }
+  
+  /* Registrations table header */
+  .an-reg-table-header {
+    display: grid;
+    grid-template-columns: 120px 1fr 1fr 150px 1fr 90px 110px;
+    gap: 0;
+    background: ${C.primary};
+    padding: 12px 24px;
+  }
+  
+  /* Registrations table row */
+  .an-reg-table-row {
+    display: grid;
+    grid-template-columns: 120px 1fr 1fr 150px 1fr 90px 110px;
+    gap: 0;
+    padding: 13px 24px;
+    border-bottom: 1px solid ${C.borderLight};
+    transition: background 140ms;
+  }
+  
+  /* Summary strip - 3 columns */
+  .an-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  
+  /* Tablet styles - 1024px and below */
+  @media (max-width: 1024px) {
+    .an-topbar {
+      padding: 14px 24px;
+    }
+    
+    /* Metric cards: 4 → 2 columns */
+    .an-metrics-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    
+    /* Summary strip: 3 → 2 columns */
+    .an-summary-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    
+    /* Table: switch to card layout */
+    .an-table-desktop {
+      display: none;
+    }
+    
+    .an-table-mobile {
+      display: block;
+    }
+    
+    /* Mobile card for each registration */
+    .an-reg-card {
+      background: ${C.surface};
+      border: 1px solid ${C.border};
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: box-shadow 140ms;
+    }
+    
+    .an-reg-card:hover {
+      box-shadow: 0 4px 12px rgba(26,24,20,0.08);
+    }
+    
+    .an-reg-card-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+      gap: 12px;
+    }
+    
+    .an-reg-card-row:last-child {
+      margin-bottom: 0;
+    }
+    
+    .an-reg-card-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: ${C.secondary};
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: 'DM Mono', monospace;
+      margin-bottom: 4px;
+    }
+    
+    .an-reg-card-value {
+      font-size: 13px;
+      color: ${C.primary};
+      word-break: break-word;
+    }
+  }
+  
+  /* Mobile styles - 640px and below */
+  @media (max-width: 640px) {
+    /* Content padding */
+    .an-root > div:last-child {
+      padding: 24px 16px !important;
+    }
+    
+    .an-topbar {
+      padding: 12px 16px;
+    }
+    
+    /* Metric cards: 2 → 1 column */
+    .an-metrics-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    /* Summary strip: 2 → 1 column */
+    .an-summary-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    /* Search and export row */
+    .an-search-row {
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .an-search {
+      width: 100% !important;
+    }
+    
+    .an-btn-primary {
+      width: 100%;
+      justify-content: center;
+    }
+    
+    /* Tabs: allow horizontal scroll */
+    .an-tabs {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    
+    .an-tabs::-webkit-scrollbar {
+      display: none;
+    }
+  }
+`
 // ── Metric card ───────────────────────────────────────────────────────────────
 const METRIC_DEFS = [
   { key: 'registrations',  label: 'Registrations',   accent: C.amber, icon: '👤' },
@@ -440,7 +783,7 @@ export default function AnalyticsPage() {
             </p>
 
             {/* Metric cards */}
-            <div className="db-analytics-metrics">
+            <div className="an-metrics-grid">
               {METRIC_DEFS.map((def, idx) => (
                 <MetricCard key={def.key} def={def} value={metricValues[def.key]} idx={idx} />
               ))}
@@ -510,7 +853,7 @@ export default function AnalyticsPage() {
           <div className="fade-up">
 
             {/* Search + Export */}
-            <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20 }}>
+            <div className="an-search-row" style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20 }}>
               <div className="an-search">
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ color:C.tertiary,flexShrink:0 }}>
                   <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.4"/>
@@ -531,7 +874,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Summary strip */}
-            <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16,marginBottom:24 }}>
+            <div className="an-summary-grid">
               {[
                 { label:'Total Registrations', val:registrations.length, accent:C.amber },
                 { label:'Total Image Views',   val:allPhotos.filter(p=>p.status==='ready').length, accent:C.rose },
@@ -549,6 +892,8 @@ export default function AnalyticsPage() {
 
             {/* Table */}
             <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:'hidden' }}>
+                          {/* DESKTOP TABLE VIEW */}
+              <div className="an-table-desktop">
               {/* Header */}
               <div style={{ display:'grid',gridTemplateColumns:'120px 1fr 1fr 150px 1fr 90px 110px',gap:0,background:C.primary,padding:'12px 24px' }}>
                 {['DATE','EVENT NAME','NAME','MOBILE NUMBER','EMAIL ID','IMAGE VIEW','DOWNLOADS'].map(h => (
@@ -572,7 +917,7 @@ export default function AnalyticsPage() {
                   </p>
                 </div>
               ) : pagedRegs.map((r, i) => (
-                <div key={i} style={{ display:'grid',gridTemplateColumns:'120px 1fr 1fr 150px 1fr 90px 110px',gap:0,padding:'13px 24px',borderBottom:`1px solid ${C.borderLight}`,transition:'background 140ms' }}
+                  <div key={i} className="an-reg-table-row"
                   onMouseEnter={e=>e.currentTarget.style.background=C.bg}
                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                   <div style={{ fontSize:12,color:C.secondary,fontFamily:"'DM Mono',monospace" }}>{r.date}</div>
@@ -589,8 +934,79 @@ export default function AnalyticsPage() {
                 </div>
               ))}
 
+
+              </div>
+              
+              {/* MOBILE CARD VIEW */}
+              <div className="an-table-mobile">
+                {loading ? (
+                  <div style={{ padding:'48px 24px',textAlign:'center',color:C.secondary,fontSize:13 }}>Loading registrations…</div>
+                ) : pagedRegs.length === 0 ? (
+                  <div style={{ padding:'56px 24px',textAlign:'center' }}>
+                    <div style={{ width:48,height:48,borderRadius:12,background:`${C.sage}12`,border:`1px solid ${C.sage}25`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px' }}>
+                      <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="7" r="3.5" stroke={C.sage} strokeWidth="1.5"/><path d="M3 19c0-4 3.58-7 8-7s8 3 8 7" stroke={C.sage} strokeWidth="1.5" strokeLinecap="round"/></svg>
+                    </div>
+                    <p style={{ fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:500,color:C.primary,marginBottom:6 }}>
+                      {search ? 'No results found' : 'No registrations yet'}
+                    </p>
+                    <p style={{ fontSize:13,color:C.secondary,lineHeight:1.6 }}>
+                      {search ? 'Try a different search term.' : 'Registration data will appear here once guests sign up for your events.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ padding:'16px' }}>
+                    {pagedRegs.map((r, i) => (
+                      <div key={i} className="an-reg-card">
+                        <div className="an-reg-card-row">
+                          <div style={{ flex:1 }}>
+                            <div className="an-reg-card-label">Name</div>
+                            <div className="an-reg-card-value" style={{ fontWeight:600 }}>{r.name}</div>
+                          </div>
+                          <div style={{ textAlign:'right' }}>
+                            <div className="an-reg-card-label">Date</div>
+                            <div className="an-reg-card-value" style={{ fontFamily:"'DM Mono',monospace",fontSize:11 }}>{r.date}</div>
+                          </div>
+                        </div>
+                        
+                        <div className="an-reg-card-row">
+                          <div style={{ flex:1 }}>
+                            <div className="an-reg-card-label">Event</div>
+                            <div className="an-reg-card-value" style={{ fontWeight:600,fontSize:12 }}>{r.eventName}</div>
+                          </div>
+                        </div>
+                        
+                        <div className="an-reg-card-row">
+                          <div style={{ flex:1 }}>
+                            <div className="an-reg-card-label">Mobile</div>
+                            <div className="an-reg-card-value" style={{ fontFamily:"'DM Mono',monospace",fontSize:12 }}>{r.mobile}</div>
+                          </div>
+                        </div>
+                        
+                        <div className="an-reg-card-row">
+                          <div style={{ flex:1 }}>
+                            <div className="an-reg-card-label">Email</div>
+                            <div className="an-reg-card-value" style={{ color:'#6366f1',fontSize:12,wordBreak:'break-all' }}>{r.email}</div>
+                          </div>
+                        </div>
+                        
+                        <div className="an-reg-card-row">
+                          <div>
+                            <div className="an-reg-card-label">Image Views</div>
+                            <span style={{ background:r.imageView>0?`${C.sage}18`:`${C.borderLight}`,color:r.imageView>0?C.sage:C.tertiary,padding:'4px 10px',borderRadius:20,fontSize:12,fontFamily:"'DM Mono',monospace",fontWeight:600 }}>{r.imageView}</span>
+                          </div>
+                          <div style={{ textAlign:'right' }}>
+                            <div className="an-reg-card-label">Downloads</div>
+                            <span style={{ background:C.borderLight,color:C.tertiary,padding:'4px 10px',borderRadius:20,fontSize:12,fontFamily:\"'DM Mono',monospace\",fontWeight:600 }}>{r.imageDownloads}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Pagination */}
-              <div style={{ display:'flex',alignItems:'center',justifyContent:'flex-end',padding:'12px 24px',borderTop:`1px solid ${C.border}`,gap:16 }}>
+              <div style={{ display:'flex',alignItems:'center',justifyContent:'flex-end',padding:'12px 24px',borderTop:`1px solid ${C.border}`,gap:16,flexWrap:'wrap' }}>
                 <div style={{ display:'flex',alignItems:'center',gap:6,fontSize:12,color:C.secondary }}>
                   <span>Rows per page:</span>
                   <select className="rpp-select" value={rowsPerPage} onChange={e=>{setRowsPerPage(+e.target.value);setPage(0)}}>

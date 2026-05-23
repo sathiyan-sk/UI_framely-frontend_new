@@ -376,7 +376,7 @@ html, body {
   /* Settings page: stack sidebar on tablet */
   .st-settings-layout {
     flex-direction: column;
-  }
+  } 
 
   .st-sidebar-nav {
     width: 100%;
