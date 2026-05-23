@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import './dashboard.css'
+
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -10,11 +12,10 @@ export default function DashboardLayout({ children }) {
   const pathname = usePathname()
   const [user,         setUser]         = useState(null)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [navOpen,      setNavOpen]      = useState(false)
 
-  useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) { window.location.href = '/login'; return }
-  }, [])
+  // Close mobile drawer whenever route changes
+  useEffect(() => { setNavOpen(false) }, [pathname])
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -71,15 +72,44 @@ export default function DashboardLayout({ children }) {
   ]
 
   return (
-    <div style={{
+    <div
+      className={`db-shell${navOpen ? ' is-open' : ''}`}
+      style={{
       minHeight: '100vh',
       background: '#f5f5f5',
       fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
       display: 'flex',
     }}>
 
+    
+      {/* ── Mobile menu trigger (visible <=1024px) ── */}
+      <button
+        type="button"
+        aria-label={navOpen ? 'Close menu' : 'Open menu'}
+        aria-expanded={navOpen}
+        className="db-menu-trigger"
+        onClick={() => setNavOpen(v => !v)}
+      >
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          {navOpen ? (
+            <path d="M4 4l10 10M14 4L4 14" stroke="#111111" strokeWidth="1.6" strokeLinecap="round"/>
+          ) : (
+            <>
+              <path d="M2.5 5h13" stroke="#111111" strokeWidth="1.6" strokeLinecap="round"/>
+              <path d="M2.5 9h13" stroke="#111111" strokeWidth="1.6" strokeLinecap="round"/>
+              <path d="M2.5 13h13" stroke="#111111" strokeWidth="1.6" strokeLinecap="round"/>
+            </>
+          )}
+        </svg>
+      </button>
+
+      {/* ── Backdrop (mobile drawer) ── */}
+      <div className="db-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />
+
       {/* ── SIDEBAR ── */}
-      <div style={{
+      <div
+        className="db-sidebar"
+        style={{
         width: 200,
         flexShrink: 0,
         background: '#fff',
@@ -233,19 +263,18 @@ export default function DashboardLayout({ children }) {
       </div>
 
       {/* ── MAIN AREA ── */}
-      <div style={{
-        flex: 1,
-        marginLeft: 200,
-        minHeight: '100vh',
+      <div
+        className="db-main"
+        style={{
         background: '#f5f5f5',
       }}>
         {/*
           Source padding: '32px 44px 60px'
-          No maxWidth constraint here — let the grid inside page.js handle layout
+          Now fluid via dashboard.css → .db-main-inner uses clamp() values
         */}
-        <div style={{
-          padding: '32px 44px 60px',
-          maxWidth: 1400,
+        <div
+          className="db-main-inner"
+          style={{
           boxSizing: 'border-box',
         }}>
           {children}

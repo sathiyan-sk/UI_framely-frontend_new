@@ -43,7 +43,11 @@ function Placeholder({ aspect = '1 / 1', label, radius = 10 }) {
 // ── Card ──────────────────────────────────────────────────────────────────────
 function Card({ children, style, span, rowSpan }) {
   return (
-    <div style={{
+    <div
+      className="db-card"
+      data-span={span || undefined}
+      data-rowspan={rowSpan || undefined}
+      style={{
       border: `1px solid ${T.line}`, borderRadius: 14, background: T.bg,
       padding: 20, gridColumn: span ? `span ${span}` : undefined,
       gridRow: rowSpan ? `span ${rowSpan}` : undefined, minWidth: 0, ...style,
@@ -383,14 +387,14 @@ export default function DashboardHome() {
     <div style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
 
       {/* ── Header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
+      <div className="db-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 11, color: T.inkMute, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 500, marginBottom: 6 }}>Dashboard</div>
-          <h1 style={{ fontFamily: T.serif, fontSize: 36, margin: 0, letterSpacing: '-0.015em', fontWeight: 400, color: T.ink }}>
+          <h1 className="db-hello-title" style={{ fontFamily: T.serif, fontSize: 36, margin: 0, letterSpacing: '-0.015em', fontWeight: 400, color: T.ink }}>
             Hey <em style={{ fontStyle: 'italic' }}>{userName || '…'}</em>, here's today.
           </h1>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div className="db-page-header-actions" style={{ display: 'flex', gap: 10 }}>
           <button
             onClick={() => router.push('/dashboard/media')}
             style={{ padding: '8px 18px', border: `1px solid ${T.line}`, borderRadius: 8, background: T.bg, fontSize: 13, color: T.inkSoft, cursor: 'pointer', fontWeight: 500, fontFamily: 'inherit' }}
@@ -403,8 +407,7 @@ export default function DashboardHome() {
       </div>
 
       {/* ── Main grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-
+      <div className="db-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         {/* 4 stat cards */}
         {statCards.map((c, i) => (
           <Card key={i}>
@@ -533,7 +536,7 @@ export default function DashboardHome() {
           </div>
 
           {loading ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+            <div className="db-thumb-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} style={{ aspectRatio: '1', borderRadius: 6, background: T.bgSunk, animation: 'pulse 1.4s ease-in-out infinite' }} />
               ))}
@@ -541,7 +544,7 @@ export default function DashboardHome() {
           ) : recentPhotos.length === 0 ? (
             // ── No photos yet — hatched placeholders + upload nudge ──
             <div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginBottom: 12 }}>
+              <div className="db-thumb-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginBottom: 12 }}>
                 {UPLOAD_LABELS.map(label => (
                   <Placeholder key={label} aspect="1 / 1" label={label} radius={6} />
                 ))}
@@ -560,8 +563,7 @@ export default function DashboardHome() {
             </div>
           ) : (
             // ── Real photos — fill remaining slots with placeholders ──
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
-              {UPLOAD_LABELS.map((label, i) => (
+            <div className="db-thumb-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>              {UPLOAD_LABELS.map((label, i) => (
                 recentPhotos[i] ? (
                   <div key={label} style={{ aspectRatio: '1', borderRadius: 6, overflow: 'hidden', position: 'relative', border: `1px solid ${T.line}` }}>
                     <img
@@ -635,13 +637,12 @@ export default function DashboardHome() {
                 </div>
               </div>
               <div style={{ background: T.bgSoft, border: `1px solid ${T.line}`, borderRadius: 8, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                <span style={{ fontSize: 10, color: T.inkMute, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: T.mono }}>{guestUrl}</span>
+                <span className="db-qr-url" style={{ fontSize: 10, color: T.inkMute, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: T.mono }}>{guestUrl}</span>
                 <button onClick={copyLink} style={{ fontSize: 10, color: copied ? '#16a34a' : T.accent, background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 700, flexShrink: 0 }}>
                   {copied ? '✓ Copied!' : 'Copy'}
                 </button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <button
+              <div className="db-qr-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>                <button
                   onClick={() => { const c = document.querySelector('canvas'); if (c) { const a = document.createElement('a'); a.download = `qr-${currentEvent?.slug}.png`; a.href = c.toDataURL(); a.click() } }}
                   style={{ padding: '7px 0', borderRadius: 7, background: T.ink, color: '#fff', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
                 >

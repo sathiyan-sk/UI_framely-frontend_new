@@ -1,0 +1,244 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Framely Dashboard – Responsive Layer
+   Strategy: progressive enhancement on top of existing inline styles.
+   Only layout/spacing/sizing concerns. Visuals (colors, borders, radius)
+   remain owned by the JSX inline-styles. No business logic changes.
+   Breakpoints:
+     mobile        : <= 640px
+     tablet        : 641px – 1024px
+     desktop       : 1025px – 1440px
+     compact/large : >= 1441px
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* ── Root container shell ────────────────────────────────────────────── */
+.db-shell {
+  --db-sidebar-w: 200px;
+  --db-pad-x: clamp(16px, 4vw, 44px);
+  --db-pad-top: clamp(20px, 3vw, 32px);
+  --db-pad-bottom: clamp(40px, 6vw, 60px);
+  --db-gap: clamp(12px, 1.5vw, 16px);
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────── */
+.db-sidebar {
+  width: var(--db-sidebar-w);
+  transition: transform .22s ease;
+  will-change: transform;
+}
+
+.db-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 9;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+
+/* ── Mobile menu trigger (hidden on desktop) ─────────────────────────── */
+.db-menu-trigger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid #e5e5e5;
+  background: #fff;
+  cursor: pointer;
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 20;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Main area ───────────────────────────────────────────────────────── */
+.db-main {
+  flex: 1;
+  margin-left: var(--db-sidebar-w);
+  min-width: 0;
+  min-height: 100vh;
+}
+
+.db-main-inner {
+  padding: var(--db-pad-top) var(--db-pad-x) var(--db-pad-bottom);
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Page (page.js) responsive helpers
+   ─────────────────────────────────────────────────────────────────── */
+
+/* Header row */
+.db-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: clamp(16px, 2.5vw, 24px);
+  flex-wrap: wrap;
+}
+
+.db-page-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.db-hello-title {
+  font-size: clamp(22px, 4.2vw, 36px) !important;
+  line-height: 1.1;
+}
+
+/* Main grid (stat + cards) */
+.db-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--db-gap);
+}
+
+/* Card: allow CSS to override inline gridColumn / gridRow */
+.db-card {
+  min-width: 0;
+}
+
+/* Recent uploads thumbnail grid */
+.db-thumb-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* Two-column footer (download / preview) inside QR card – already 1fr 1fr */
+.db-qr-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* Long URL pill should never overflow */
+.db-qr-url {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Responsive images / media safety net */
+.db-main-inner img,
+.db-main-inner svg,
+.db-main-inner canvas,
+.db-main-inner video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   BREAKPOINTS
+   ─────────────────────────────────────────────────────────────────── */
+
+/* Tablet & smaller — collapse sidebar to slide-in drawer */
+@media (max-width: 1024px) {
+  .db-sidebar {
+    transform: translateX(-100%);
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.12);
+  }
+  .db-shell.is-open .db-sidebar {
+    transform: translateX(0);
+  }
+  .db-shell.is-open .db-backdrop {
+    display: block;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .db-main {
+    margin-left: 0;
+  }
+  .db-menu-trigger {
+    display: flex;
+  }
+  .db-main-inner {
+    padding-top: clamp(56px, 8vw, 70px); /* leave room for menu button */
+  }
+
+  /* Grid: 4 → 2 columns */
+  .db-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .db-card[data-span=\"2\"] {
+    grid-column: span 2 !important;
+  }
+  /* rowSpan=2 cards adapt naturally; cap to span 2 cols on tablet */
+  .db-card[data-rowspan=\"2\"] {
+    grid-row: auto !important;
+  }
+
+  /* Recent uploads: 6 → 4 columns */
+  .db-thumb-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .db-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .db-page-header-actions {
+    width: 100%;
+  }
+  .db-page-header-actions > * {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .db-grid {
+    grid-template-columns: 1fr;
+  }
+  .db-card[data-span=\"2\"],
+  .db-card[data-span=\"3\"],
+  .db-card[data-span=\"4\"] {
+    grid-column: span 1 !important;
+  }
+  .db-card[data-rowspan=\"2\"],
+  .db-card[data-rowspan=\"3\"] {
+    grid-row: auto !important;
+  }
+
+  /* Recent uploads: 6 → 3 cols on mobile */
+  .db-thumb-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* QR action row stays 1fr 1fr but with smaller gap */
+  .db-qr-row {
+    gap: 6px;
+  }
+
+  /* Touch-friendly minimum target on buttons in main area */
+  .db-main-inner button,
+  .db-main-inner a[role=\"button\"] {
+    min-height: 36px;
+  }
+}
+
+/* Compact / large screens – cap the inner width */
+@media (min-width: 1441px) {
+  .db-main-inner {
+    max-width: 1400px;
+  }
+}
+
+/* Prevent any horizontal overflow at root */
+html, body {
+  overflow-x: hidden;
+}
