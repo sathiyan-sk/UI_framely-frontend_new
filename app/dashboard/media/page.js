@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import '../dashboard.css'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const eventColors = ['linear-gradient(135deg,#9b7fe8,#c084fc)','linear-gradient(135deg,#f472b6,#ec4899)','linear-gradient(135deg,#60a5fa,#3b82f6)','linear-gradient(135deg,#34d399,#10b981)','linear-gradient(135deg,#fbbf24,#f59e0b)','linear-gradient(135deg,#a78bfa,#8b5cf6)']
@@ -70,13 +71,14 @@ export default function MediaPage() {
             <div key={i} style={{ aspectRatio:1, borderRadius:14, overflow:'hidden', position:'relative' }}>
               {p.url
                 ? <img src={p.url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} onError={e=>{e.target.style.display='none';e.target.parentNode.style.background=eventColors[i%6]}} />
-                : <div style={{ width:'100%', height:'100%', background=eventColors[i%6] }} />
+                : <div style={{ width:'100%', height:'100%', background:eventColors[i%6] }} />
               }
               <div style={{ position:'absolute', top:5, right:5, width:8, height:8, borderRadius:'50%', background:p.status==='ready'?'#22c55e':'#f59e0b', border:'1.5px solid rgba(255,255,255,0.8)' }} />
             </div>
           ))}
         </div>
-      }
+        )}
+        </div>
     </div>
   )
 }
