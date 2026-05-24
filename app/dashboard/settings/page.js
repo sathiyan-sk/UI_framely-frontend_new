@@ -740,7 +740,7 @@ export default function SettingsPage() {
                 <div style={{ width:48, height:48, borderRadius:12, background:T.bg, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="2" width="16" height="18" rx="2" stroke={T.secondary} strokeWidth="1.4"/><path d="M7 7h8M7 11h8M7 15h5" stroke={T.secondary} strokeWidth="1.4" strokeLinecap="round"/></svg>
                 </div>
-                <p style={{ fontFamily:"'DM Serif Display',serif", fontSize:100, fontWeight:400, color:T.primary, marginBottom:6 }}>No invoices yet</p>
+                <p style={{ fontFamily:"'DM Serif Display',serif", fontSize:50, fontWeight:400, color:T.primary, marginBottom:6 }}>No invoices yet</p>
                 <p style={{ fontSize:13, color:T.secondary, lineHeight:1.6 }}>Your payment will appear here once you upgrade your plan.</p>
               </div>
             </div>

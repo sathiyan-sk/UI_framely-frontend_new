@@ -56,13 +56,114 @@ export default function LandingPage() {
   ]
 
   return (
-    <div style={{
+    <div className="landing-page" style={{
       fontFamily:"'Inter',system-ui,sans-serif",
       minHeight:'100vh',
       background:'linear-gradient(135deg, #ddd6fe 0%, #e9d5ff 20%, #fbcfe8 45%, #fde68a 70%, #fecdd3 85%, #ddd6fe 100%)',
       position:'relative',
       overflowX:'hidden',
     }}>
+
+
+      {/* Responsive Styles */}
+      <style>
+        {`
+        /* Navigation - hide links on mobile, show menu button */
+
+
+        @media (max-width: 768px) {
+          .landing-page .nav-links {
+            display: none !important;
+          }
+        }
+        
+        /* Hero Stats - 4 columns to 2 to 1 */
+        .hero-stats {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 14px;
+        }
+        
+        @media (max-width: 768px) {
+          .hero-stats {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .hero-stats {
+            grid-template-columns: 1fr;
+            gap: 10px;
+          }
+        }
+        
+        /* Pricing Grid - 3 columns to 1 */
+        .pricing-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 20px;
+        }
+        
+        @media (max-width: 1024px) {
+          .pricing-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+          }
+        }
+        
+        @media (max-width: 640px) {
+          .pricing-grid {
+            grid-template-columns: 1fr;
+            gap: 20px;
+            max-width: 420px;
+            margin: 0 auto;
+          }
+        }
+        
+        /* Use Case Grid - 2 columns to 1 */
+        .use-case-content {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 48px;
+          align-items: center;
+        }
+        
+        @media (max-width: 768px) {
+          .use-case-content {
+            grid-template-columns: 1fr;
+            gap: 32px;
+          }
+        }
+        
+        /* Footer Grid - 5 columns to stacked */
+        .footer-grid {
+          display: grid;
+          grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+          gap: 40px;
+        }
+        
+        @media (max-width: 1024px) {
+          .footer-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 32px;
+          }
+          
+          .footer-grid > div:first-child {
+            grid-column: 1 / -1;
+          }
+        }
+        
+        @media (max-width: 640px) {
+          .footer-grid {
+            grid-template-columns: 1fr;
+            gap: 28px;
+            text-align: center;
+          }
+        }
+      `}
+      </style>
+
 
       {/* Soft radial glow in center like page 1 */}
       <div style={{ position:'fixed', inset:0, background:'radial-gradient(ellipse 80% 60% at 50% 30%, rgba(255,220,200,0.45) 0%, transparent 70%)', pointerEvents:'none', zIndex:0 }} />
@@ -80,7 +181,7 @@ export default function LandingPage() {
             </div>
 
             {/* Links */}
-            <div style={{ display:'flex', alignItems:'center', gap:32 }}>
+            <div className="nav-links" style={{ display:'flex', alignItems:'center', gap:32 }}>
               {navLinks.map(l => (
                 <a key={l} href={`#${l.toLowerCase().replace(/ /g,'-')}`}
                   style={{ fontSize:14, color:'#6b7280', textDecoration:'none', fontWeight:500, transition:'color .15s' }}
@@ -142,7 +243,7 @@ export default function LandingPage() {
             </div>
 
             {/* Stats — clean cards like page 1 */}
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, maxWidth:900, margin:'0 auto' }}>
+            <div className="hero-stats" style={{ maxWidth:900, margin:'0 auto' }}>
               {[{v:'10M+',l:'Photos Processed'},{v:'99.5%',l:'Face Recognition Accuracy'},{v:'50K+',l:'Events Hosted'},{v:'4.9/5',l:'Customer Rating'}].map((s,i)=>(
                 <div key={i} style={{ background:'rgba(255,255,255,0.55)', backdropFilter:'blur(12px)', border:'1px solid rgba(255,255,255,0.8)', borderRadius:20, padding:'22px 16px', textAlign:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.05)' }}>
                   <div style={{ fontSize:'clamp(28px,3vw,36px)', fontWeight:800, color:'#2d1b69', letterSpacing:'-.03em', marginBottom:5 }}>{s.v}</div>
@@ -209,7 +310,7 @@ export default function LandingPage() {
               ))}
             </div>
             <div style={{ background:'rgba(255,255,255,0.5)', backdropFilter:'blur(20px)', border:'1px solid rgba(255,255,255,0.75)', borderRadius:28, padding:'40px 44px' }}>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:48, alignItems:'center' }}>
+              <div className="use-case-content">
                 <div>
                   <h3 style={{ fontSize:28, fontWeight:800, color:'#2d1b69', letterSpacing:'-.03em', marginBottom:14 }}>{useCases[activeUseCase].title}</h3>
                   <p style={{ fontSize:15, color:'#7c6aaa', lineHeight:1.75, marginBottom:24 }}>{useCases[activeUseCase].desc}</p>
@@ -248,7 +349,7 @@ export default function LandingPage() {
                 ))}
               </div>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20 }}>
+            <div className="pricing-grid">
               {plans.map((p,i)=>(
                 <div key={i} style={{ borderRadius:28, padding:'32px 28px', position:'relative', ...(p.popular ? { background:'linear-gradient(135deg,#9b7fe8,#c084fc)', boxShadow:'0 16px 48px rgba(155,127,232,0.45)' } : { background:'rgba(255,255,255,0.55)', backdropFilter:'blur(16px)', border:'1px solid rgba(255,255,255,0.75)' }) }}>
                   {p.popular && <div style={{ position:'absolute', top:-13, left:'50%', transform:'translateX(-50%)', background:'#fff', color:'#9b7fe8', fontSize:11, fontWeight:800, padding:'4px 16px', borderRadius:20, boxShadow:'0 4px 14px rgba(0,0,0,0.1)', whiteSpace:'nowrap' }}>Most Popular</div>}
@@ -342,7 +443,7 @@ export default function LandingPage() {
         {/* FOOTER */}
         <footer style={{ padding:'40px 20px 32px', borderTop:'1px solid rgba(255,255,255,0.4)' }}>
           <div style={{ maxWidth:1200, margin:'0 auto' }}>
-            <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr', gap:40, marginBottom:40 }}>
+            <div className="footer-grid" style={{ marginBottom:40 }}>
               <div>
                 <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                   <div style={{ width:34, height:34, borderRadius:11, background:'linear-gradient(135deg,#9b7fe8,#c084fc)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:800 }}>P</div>
